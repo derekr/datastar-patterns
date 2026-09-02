@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Datastar Patterns — backend first, signals when you need them</title>
+<script type="module" src="./vendor/datastar.js"></script>
+<style>
+  :root { --bg:#fafafa; --panel:#fff; --ink:#111; --muted:#666; --line:#e5e5e5; --acc:#007d9c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header.top { background:#fff; border-bottom:1px solid var(--line); padding:10px 20px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
+  header.top .logo { font-weight:800; color:var(--acc); text-decoration:none; }
+  header.top .progress { flex:1; height:6px; background:#eee; border-radius:99px; overflow:hidden; }
+  header.top .progress > div { height:100%; background:var(--acc); width:0%; transition:width .3s; }
+  .layout { display:grid; grid-template-columns:250px 1fr; min-height:calc(100vh - 53px); }
+  nav.steps { border-right:1px solid var(--line); background:#fff; padding:12px; }
+  nav.steps button { display:block; width:100%; text-align:left; border:0; background:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-size:14px; }
+  nav.steps button small { display:block; color:var(--muted); font-size:12px; }
+  nav.steps button.active { background:#e6f4f8; font-weight:700; }
+  main { padding:28px; max-width:980px; }
+  section.step { display:none; }
+  section.step.active { display:block; }
+  h2 { margin-top:0; }
+  p.lead { color:var(--muted); font-size:17px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:900px){ .layout{grid-template-columns:1fr} nav.steps{display:flex;overflow:auto} .grid2{grid-template-columns:1fr} }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h3 { margin:0 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  pre { background:#0f172a; color:#e2e8f0; padding:14px; border-radius:10px; overflow:auto; font-size:13px; line-height:1.5; }
+  code.inline { background:#eee; padding:2px 6px; border-radius:6px; font-size:.9em; }
+  .demo { border:2px dashed #cbd5e1; border-radius:12px; padding:16px; background:#fff; }
+  .callout { border-left:4px solid var(--acc); background:#ecfeff; padding:10px 14px; border-radius:0 8px 8px 0; margin:16px 0; }
+  .btn { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:14px; }
+  .btn.secondary { background:#e2e8f0; color:#111; }
+  input[type=text], input[type=number], select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; }
+  .pager { display:flex; justify-content:space-between; margin-top:28px; }
+  table.results { width:100%; border-collapse:collapse; font-size:14px; }
+  table.results td, table.results th { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; }
+  kbd { background:#111; color:#fff; border-radius:6px; padding:1px 6px; font-size:12px; }
+  footer.hint { color:var(--muted); font-size:13px; margin-top:20px; }
+  .sig { font-family:ui-monospace, monospace; font-size:12px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="logo" href="#">★ datastar patterns</a>
+  <span id="stepLabel" class="sig">1 / 6</span>
+  <div class="progress"><div id="bar"></div></div>
+  <span class="sig">fetch-shim backend · no server</span>
+</header>
+
+<div class="layout">
+<nav class="steps" id="nav"></nav>
+<main id="main">
+
+<!-- 1: backend first -->
+<section class="step" data-title="Actions & patching" data-sub="backend drives UI + indicator">
+  <h2>1. Start here: backend drives the UI</h2>
+  <p class="lead">Default to the backend as source of truth. A click fires <code class="inline">@get/@post</code>, the backend returns SSE that <strong>patches elements</strong>. No frontend state needed. <code class="inline">data-indicator</code> gives you loading for free.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it</h3>
+      <div class="demo">
+        <button class="btn" data-on:click="@post('/api/inc')" data-indicator:s1_loading>Increment (server)</button>
+        <button class="btn secondary" data-on:click="@post('/api/reset')" data-indicator:s1_loading>Reset</button>
+        <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
+        <span data-show="$s1_loading" style="display:none"> ⏳ $s1_loading=true</span>
+        <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
+        <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>&lt;button data-on:click="@get('/api/slow')"
+  data-indicator:s1_loading&gt;Slow fetch&lt;/button&gt;
+&lt;span data-show="$s1_loading"&gt;⏳ loading…&lt;/span&gt;
+&lt;div id="s5_counter"&gt;…&lt;/div&gt;
+
+# backend returns SSE:
+event: datastar-patch-elements
+data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</pre>
+    </div>
+  </div>
+  <div class="callout"><strong>Pattern:</strong> one request → 0..n SSE events. Patch HTML with morphing (send fat HTML, only diffs apply). Use <code class="inline">data-indicator:name</code> <strong>on the same element that fires the action</strong> — Datastar sets <code class="inline">$name=true</code> while that element's request is in flight (it matches fetch events by element identity, so a wrapper div won't catch child buttons). Read it anywhere with <code class="inline">data-show="$name"</code>. Reach for signals only when you need client reactivity (next).</div>
+  <div class="pager"><span></span><button class="btn" data-goto="1">Next: signals →</button></div>
+</section>
+
+<!-- 2: signals -->
+<section class="step" data-title="Signals & forms" data-sub="reach for reactivity">
+  <h2>2. Reach for signals: reactivity &amp; forms</h2>
+  <p class="lead">When the UI must react <em>without</em> a round-trip — typing, toggles, conditional buttons — add signals (<code class="inline">$name</code>). They stay on the client until you send them.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it</h3>
+      <div class="demo" data-signals:s1_name="''" data-signals:s2_qty="1" data-signals:s2_agree="false" data-signals:s2_placed="false">
+        <input type="text" placeholder="type your name" data-bind:s1_name />
+        <p>Hello, <strong data-text="$s1_name || 'stranger'"></strong>!</p>
+        <hr/>
+        <label>Qty <input type="number" min="0" max="9" data-bind:s2_qty /></label>
+        <label style="display:block;margin:8px 0"><input type="checkbox" data-bind:s2_agree /> I agree</label>
+        <button class="btn" data-attr:disabled="!$s2_agree"
+          data-on:click="$s2_placed = true"
+          data-show="$s2_qty > 0" style="display:none">Checkout × <span data-text="$s2_qty"></span></button>
+        <p class="sig" data-show="$s2_qty == 0">qty is 0 — button hides via <code>data-show</code>.</p>
+        <p data-show="$s2_placed" style="display:none">✅ Order placed: <strong data-text="$s2_qty"></strong> item(s) for <strong data-text="$s1_name || 'stranger'"></strong>.
+          <button class="btn secondary" data-on:click="$s2_placed = false; $s2_qty = 1">Start over</button></p>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>&lt;button
+  data-show="$s2_qty &gt; 0"
+  data-attr:disabled="!$s2_agree"
+  data-on:click="$s2_placed = true"
+&gt;Checkout × &lt;span data-text="$s2_qty"&gt;&lt;/span&gt;
+&lt;/button&gt;
+&lt;p data-show="$s2_placed"&gt;
+  ✅ Order placed: &lt;strong data-text="$s2_qty"&gt;&lt;/strong&gt;
+&lt;/p&gt;</pre>
+    </div>
+  </div>
+  <div class="callout"><strong>When signals:</strong> <code class="inline">data-bind</code> (two-way input) → <code class="inline">data-text / data-show / data-class / data-attr</code> (display). Signals are global; <code class="inline">$_local</code> prefix keeps them client-only (never sent). Tip: pair <code class="inline">data-show</code> with <code class="inline">style="display:none"</code> to avoid flash.</div>
+  <div class="pager"><button class="btn secondary" data-goto="0">← Back</button><button class="btn" data-goto="2">Next →</button></div>
+</section>
+
+<!-- 3: combined -->
+<section class="step" data-title="Signals + backend" data-sub="active search, debounced">
+  <h2>3. Combine: signals sent to backend</h2>
+  <p class="lead">All non-<code class="inline">_</code> signals ship with every <code class="inline">@get/@post</code> (query <code class="inline">?datastar={…}</code> or JSON body). Classic example: debounced active search.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it</h3>
+      <div class="demo" data-signals:s5_search="''">
+        <input type="text" placeholder="Search contacts…" data-bind:s5_search
+          data-on:input__debounce.250ms="@get('/api/search')" />
+        <div style="font-size:13px;color:#666">sent: <code class="inline">?datastar={"s5_search":"…"}</code></div>
+        <div id="s5_results"><em>Type to search — backend morphs this div.</em></div>
+        <p class="sig">matches: <span data-text="$s5_count ?? '…'"></span></p>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>&lt;input data-bind:s5_search
+  data-on:input__debounce.250ms="@get('/api/search')" /&gt;
+&lt;div id="s5_results"&gt;&lt;/div&gt;
+
+// shim returns:
+event: datastar-patch-elements
+data: selector #s5_results
+data: mode inner
+data: elements &lt;table&gt;…&lt;/table&gt;
+
+event: datastar-patch-signals
+data: signals {s5_count: 3}</pre>
+    </div>
+  </div>
+  <div class="pager"><button class="btn secondary" data-goto="1">← Back</button><button class="btn" data-goto="3">Next →</button></div>
+</section>
+
+<!-- 4: sync JS -->
+<section class="step" data-title="Break out to JS" data-sub="plain functions, props in">
+  <h2>4. When expressions get big → plain JS</h2>
+  <p class="lead">Datastar expressions are JS-like, but for reuse/tests/multi-line logic extract to <code class="inline">window.App</code>. Pass signals as arguments, use the return value.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it</h3>
+      <div class="demo" data-signals:s3_title="'Hello World!'" data-signals:s3_slug="'hello-world'">
+        <input type="text" data-bind:s3_title data-on:input="$s3_slug = App.slugify($s3_title)" />
+        <p>slug: <code class="inline" data-text="$s3_slug"></code></p>
+        <p>words: <strong data-text="App.wordCount($s3_title)"></strong> · shouty: <span data-text="App.shout($s3_title)"></span></p>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>// plain JS — testable, reusable
+window.App.slugify = (s) =&gt; s.toLowerCase()
+  .trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+&lt;input data-bind:s3_title
+  data-on:input="$s3_slug = App.slugify($s3_title)" /&gt;
+&lt;span data-text="App.wordCount($s3_title)"&gt;&lt;/span&gt;</pre>
+    </div>
+  </div>
+  <div class="callout"><strong>Rule:</strong> sync helpers → return a value. Async → can't be awaited, so dispatch a <code class="inline">CustomEvent</code> (next step).</div>
+  <div class="pager"><button class="btn secondary" data-goto="2">← Back</button><button class="btn" data-goto="4">Next →</button></div>
+</section>
+
+<!-- 5: async -->
+<section class="step" data-title="Async JS → events up" data-sub="CustomEvent pattern">
+  <h2>5. Async JS: events up</h2>
+  <p class="lead">Datastar won't <code class="inline">await</code> async code. Helper takes <code class="inline">(el, data)</code>, works, then <code class="inline">el.dispatchEvent(new CustomEvent(...))</code>. Datastar listens with <code class="inline">data-on:myevent</code>.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it</h3>
+      <div class="demo" data-signals:s4_result="'…'" data-signals:s4_q="'datastar'">
+        <input type="text" data-bind:s4_q data-on:input="App.fakeLookup(el, $s4_q)" />
+        <div data-on:fakelookup__window="$s4_result = evt.detail.label"></div>
+        <p>result: <strong data-text="$s4_result"></strong></p>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>&lt;input data-bind:s4_q
+  data-on:input="App.fakeLookup(el, $s4_q)" /&gt;
+&lt;div data-on:fakelookup__window="$s4_result = evt.detail.label"&gt;&lt;/div&gt;
+
+async function fakeLookup(el, q) {
+  await sleep(400);
+  el.dispatchEvent(new CustomEvent('fakelookup',
+    {bubbles:true, detail:{label: `Found: ${q}`}}));
+}</pre>
+    </div>
+  </div>
+  <div class="callout"><strong>Pattern:</strong> props down (args) → event up (<code class="inline">detail</code>). Same shape as web components.</div>
+  <div class="pager"><button class="btn secondary" data-goto="3">← Back</button><button class="btn" data-goto="5">Next →</button></div>
+</section>
+
+<!-- 6: wc -->
+<section class="step" data-title="Web components" data-sub="props down, events up">
+  <h2>6. Encapsulate complexity: web components</h2>
+  <p class="lead">Stateful/complex UI (pickers, editors, charts) → native web component. Datastar coordinates via <strong>signals as props down</strong> (<code class="inline">data-attr:</code>) and <strong>events up</strong> (<code class="inline">data-on:</code>). Component knows nothing about Datastar.</p>
+  <div class="grid2">
+    <div class="card"><h3>Try it — &lt;color-picker&gt;</h3>
+      <div class="demo" data-signals:s7_color="'#00a4cc'">
+        <color-picker data-attr:value="$s7_color" data-on:color-input="$s7_color = evt.detail.value"></color-picker>
+        <p>signal: <code class="inline" data-text="$s7_color"></code> <span data-style:background-color="$s7_color" style="display:inline-block;width:18px;height:18px;border-radius:99px;border:1px solid #999;vertical-align:middle"></span></p>
+        <button class="btn secondary" data-on:click="$s7_color = '#e11d48'">Set red from Datastar (prop down)</button>
+      </div>
+    </div>
+    <div class="card"><h3>Code</h3>
+<pre>&lt;color-picker
+  data-attr:value="$s7_color"
+  data-on:color-input="$s7_color = evt.detail.value"
+&gt;&lt;/color-picker&gt;
+
+class ColorPicker extends HTMLElement {
+  static observedAttributes = ['value'];
+  attributeChangedCallback(n,o,v){ /* render */ }
+  #emit(v){ this.dispatchEvent(new CustomEvent('color-input',
+    {bubbles:true, composed:true, detail:{value:v}})); }
+}</pre>
+    </div>
+  </div>
+  <div class="callout"><strong>Contract:</strong> plain attributes in, <code class="inline">CustomEvent(bubbles, composed)</code> with <code class="inline">detail</code> out → mapped to a signal. Also works with <code class="inline">data-bind</code> if the component exposes <code class="inline">value</code> + fires <code class="inline">change</code>.</div>
+  <div class="pager"><button class="btn secondary" data-goto="4">← Back</button><span></span></div>
+</section>
+
+<div class="card" style="margin-top:24px">
+  <h3>Signal inspector (live)</h3>
+  <pre data-json-signals="{include: /^s\d_/}"></pre>
+  <footer class="hint">Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim — view source for <code class="inline">fakeBackend</code>.</footer>
+</div>
+
+</main>
+</div>
+
+<script>
+// ---------- tiny tour router ----------
+const steps = [...document.querySelectorAll('section.step')];
+const nav = document.getElementById('nav');
+const bar = document.getElementById('bar');
+const label = document.getElementById('stepLabel');
+let cur = 0;
+steps.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.innerHTML = `<strong>${i+1}. ${s.dataset.title}</strong><small>${s.dataset.sub||''}</small>`;
+  b.onclick = ()=>go(i);
+  nav.appendChild(b);
+});
+function go(i){
+  cur = Math.max(0, Math.min(steps.length-1, i));
+  steps.forEach((s,k)=>s.classList.toggle('active', k===cur));
+  [...nav.children].forEach((b,k)=>b.classList.toggle('active', k===cur));
+  bar.style.width = ((cur+1)/steps.length*100)+'%';
+  label.textContent = `${cur+1} / ${steps.length}`;
+  location.hash = 'step-'+(cur+1);
+  window.scrollTo({top:0});
+}
+document.addEventListener('click', e=>{
+  const t = e.target.closest('[data-goto]');
+  if(t) go(parseInt(t.dataset.goto,10));
+});
+document.addEventListener('keydown', e=>{
+  if(e.target.matches('input,textarea')) return;
+  if(e.key==='ArrowRight') go(cur+1);
+  if(e.key==='ArrowLeft') go(cur-1);
+});
+go(Math.max(0,(parseInt((location.hash||'').replace('#step-',''),10)||1)-1));
+
+// ---------- App helpers ----------
+window.App = {
+  slugify(s){ return String(s??'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); },
+  wordCount(s){ const t = String(s??'').trim(); return t ? t.split(/\s+/).length : 0; },
+  shout(s){ return String(s??'').toUpperCase() + '!'; },
+  async fakeLookup(el, q){
+    const v = String(q??'');
+    await new Promise(r=>setTimeout(r,350));
+    el.dispatchEvent(new CustomEvent('fakelookup',{bubbles:true, detail:{label: v ? `“${v}” → ${v.length} chars, reversed: ${[...v].reverse().join('')}` : '(empty)'}}));
+  }
+};
+
+// ---------- fetch shim faking a Datastar SSE backend ----------
+const CONTACTS = [["Norwood","Hills"],["Jessika","Buckridge"],["Lawrence","Herzog"],["Peyton","Rippin"],["Justina","Farrell"],["Kaleb","Beier"],["Jeffrey","Luettgen"],["Melisa","Runte"],["Rosetta","Kuhic"],["Kadin","White"],["Ada","Lovelace"],["Grace","Hopper"]];
+let serverCount = 0;
+const realFetch = window.fetch.bind(window);
+function sse(...blocks){ return blocks.join('\n\n') + '\n\n'; }
+function sseResp(body, ms=0){
+  return new Promise(res=>setTimeout(()=>res(new Response(body,{status:200,headers:{'Content-Type':'text/event-stream'}})), ms));
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function readSignalsFrom(urlStr, bodyText){
+  try{
+    if(bodyText){ return JSON.parse(bodyText); }
+    const u = new URL(urlStr, location.href);
+    const d = u.searchParams.get('datastar');
+    return d ? JSON.parse(d) : {};
+  }catch{ return {}; }
+}
+async function fakeBackend(urlStr, bodyText){
+  const path = new URL(urlStr, location.href).pathname;
+  const sig = readSignalsFrom(urlStr, bodyText);
+  if(path==='/api/search'){
+    const q = String(sig.s5_search ?? '').toLowerCase();
+    const rows = CONTACTS.filter(([f,l])=>(f+' '+l).toLowerCase().includes(q)).slice(0,6);
+    const html = rows.length
+      ? `<table class="results"><tr><th>First</th><th>Last</th></tr>${rows.map(([f,l])=>`<tr><td>${esc(f)}</td><td>${esc(l)}</td></tr>`).join('')}</table>`
+      : `<em>No matches for “${esc(sig.s5_search??'')}”.</em>`;
+    return sseResp(sse(
+      `event: datastar-patch-elements\ndata: selector #s5_results\ndata: mode inner\ndata: elements ${html}`,
+      `event: datastar-patch-signals\ndata: signals {s5_count: ${rows.length}}`
+    ), 120);
+  }
+  if(path==='/api/inc'){ serverCount++; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">${serverCount} (from server)</div>`), 150); }
+  if(path==='/api/reset'){ serverCount = 0; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">0 (from server)</div>`), 150); }
+  if(path==='/api/slow'){ return sseResp(sse(`event: datastar-patch-elements\ndata: selector #s6_out\ndata: mode inner\ndata: elements <strong>Done at ${new Date().toLocaleTimeString()} — patched by backend.</strong>`), 900); }
+  return null;
+}
+// Intercepts both fetch(string) and fetch(Request) forms — Datastar may use either.
+window.fetch = async function(input, init){
+  let urlStr = '';
+  if(typeof input === 'string') urlStr = input;
+  else if(input instanceof URL) urlStr = input.href;
+  else if(input instanceof Request) urlStr = input.url;
+  if(urlStr){
+    let path = '';
+    try{ path = new URL(urlStr, location.href).pathname; }catch{}
+    if(path.startsWith('/api/')){
+      let bodyText = init?.body;
+      if(typeof bodyText !== 'string' && input instanceof Request){
+        try{ bodyText = await input.clone().text(); }catch{ bodyText = ''; }
+      }
+      if(bodyText instanceof URLSearchParams) bodyText = bodyText.toString();
+      const r = await fakeBackend(urlStr, typeof bodyText === 'string' ? bodyText : '');
+      if(r) return r;
+    }
+  }
+  return realFetch(input, init);
+};
+
+// ---------- web component ----------
+class ColorPicker extends HTMLElement {
+  static get observedAttributes(){ return ['value']; }
+  constructor(){
+    super();
+    this.attachShadow({mode:'open'});
+    this._v = '#00a4cc';
+    this.shadowRoot.innerHTML = `<style>
+      :host{display:block;font-size:13px} .row{display:flex;gap:8px;align-items:center;margin:4px 0}
+      input[type=range]{flex:1} .prev{width:100%;height:34px;border-radius:8px;border:1px solid #cbd5e1}
+      code{font-family:ui-monospace,monospace}</style>
+      <div class="prev"></div>
+      <div class="rows"></div>
+      <div>hex: <code></code></div>`;
+  }
+  attributeChangedCallback(n,o,v){ if(v && v!==this._v){ this._v = v; this.render(); } }
+  connectedCallback(){ this.render(); }
+  #rgb(){ const h=this._v.replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+    return {r:(n>>16)&255, g:(n>>8)&255, b:n&255}; }
+  render(){
+    const {r,g,b} = this.#rgb();
+    const root = this.shadowRoot;
+    root.querySelector('.prev').style.background = this._v;
+    root.querySelector('code').textContent = this._v;
+    const rows = root.querySelector('.rows');
+    rows.innerHTML = '';
+    [['r',r,'#e11d48'],['g',g,'#16a34a'],['b',b,'#2563eb']].forEach(([k,val,c])=>{
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML = `<b style="color:${c};width:12px">${k}</b>`;
+      const inp = document.createElement('input');
+      inp.type='range'; inp.min=0; inp.max=255; inp.value=val;
+      inp.oninput = ()=>{
+        const cur = this.#rgb(); cur[k]=+inp.value;
+        const hex = '#'+[cur.r,cur.g,cur.b].map(v=>v.toString(16).padStart(2,'0')).join('');
+        this._v = hex;
+        this.dispatchEvent(new CustomEvent('color-input',{bubbles:true, composed:true, detail:{value:hex}}));
+        this.shadowRoot.querySelector('.prev').style.background = hex;
+        this.shadowRoot.querySelector('code').textContent = hex;
+      };
+      row.appendChild(inp);
+      const n = document.createElement('span'); n.textContent = val; n.style.width='28px'; n.style.textAlign='right';
+      row.appendChild(n);
+      rows.appendChild(row);
+    });
+  }
+}
+customElements.define('color-picker', ColorPicker);
+</script>
+</body>
+</html>
