@@ -40,6 +40,8 @@
   kbd { background:#111; color:#fff; border-radius:6px; padding:1px 6px; font-size:12px; }
   footer.hint { color:var(--muted); font-size:13px; margin-top:20px; }
   .sig { font-family:ui-monospace, monospace; font-size:12px; }
+  .live-chip { display:inline-block; background:#164e63; border:1px solid #22d3ee; color:#a5f3fc; border-radius:99px; padding:0 8px; font-size:11px; font-style:normal; font-weight:400; margin-left:6px; vertical-align:middle; white-space:nowrap; }
+  .live-chip b { font-weight:700; }
 </style>
 </head>
 <body>
@@ -72,7 +74,7 @@
     </div>
     <div class="card"><h3>Code</h3>
 <pre>&lt;button data-on:click="@get('/api/slow')"
-  data-indicator:s1_loading&gt;Slow fetch&lt;/button&gt;
+  data-indicator:s1_loading&gt;Slow fetch&lt;/button&gt; <span class="live-chip" title="live $s1_loading">$s1_loading=<b data-text="$s1_loading ?? false"></b></span>
 &lt;span data-show="$s1_loading"&gt;⏳ loading…&lt;/span&gt;
 &lt;div id="s5_counter"&gt;…&lt;/div&gt;
 
@@ -107,14 +109,15 @@ data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</pre>
     </div>
     <div class="card"><h3>Code</h3>
 <pre>&lt;button
-  data-show="$s2_qty &gt; 0"
-  data-attr:disabled="!$s2_agree"
-  data-on:click="$s2_placed = true"
+  data-show="$s2_qty &gt; 0" <span class="live-chip" title="live $s2_qty">$s2_qty=<b data-text="$s2_qty ?? '…'"></b></span>
+  data-attr:disabled="!$s2_agree" <span class="live-chip" title="live $s2_agree">$s2_agree=<b data-text="$s2_agree ?? false"></b></span>
+  data-on:click="$s2_placed = true" <span class="live-chip" title="live $s2_placed">$s2_placed=<b data-text="$s2_placed ?? false"></b></span>
 &gt;Checkout × &lt;span data-text="$s2_qty"&gt;&lt;/span&gt;
 &lt;/button&gt;
 &lt;p data-show="$s2_placed"&gt;
   ✅ Order placed: &lt;strong data-text="$s2_qty"&gt;&lt;/strong&gt;
-&lt;/p&gt;</pre>
+&lt;/p&gt;
+&lt;p&gt;Hello, &lt;strong data-text="$s1_name"&gt;&lt;/strong&gt;&lt;/p&gt; <span class="live-chip" title="live $s1_name">$s1_name=<b data-text="$s1_name ?? '…'"></b></span></pre>
     </div>
   </div>
   <div class="callout"><strong>When signals:</strong> <code class="inline">data-bind</code> (two-way input) → <code class="inline">data-text / data-show / data-class / data-attr</code> (display). Signals are global; <code class="inline">$_local</code> prefix keeps them client-only (never sent). Tip: pair <code class="inline">data-show</code> with <code class="inline">style="display:none"</code> to avoid flash.</div>
@@ -136,9 +139,10 @@ data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</pre>
       </div>
     </div>
     <div class="card"><h3>Code</h3>
-<pre>&lt;input data-bind:s5_search
+<pre>&lt;input data-bind:s5_search <span class="live-chip" title="live $s5_search">$s5_search=<b data-text="$s5_search ?? '…'"></b></span>
   data-on:input__debounce.250ms="@get('/api/search')" /&gt;
 &lt;div id="s5_results"&gt;&lt;/div&gt;
+&lt;span data-text="$s5_count"&gt;&lt;/span&gt; <span class="live-chip" title="live $s5_count">$s5_count=<b data-text="$s5_count ?? '…'"></b></span>
 
 // shim returns:
 event: datastar-patch-elements
@@ -170,8 +174,8 @@ data: signals {s5_count: 3}</pre>
 window.App.slugify = (s) =&gt; s.toLowerCase()
   .trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 
-&lt;input data-bind:s3_title
-  data-on:input="$s3_slug = App.slugify($s3_title)" /&gt;
+&lt;input data-bind:s3_title <span class="live-chip" title="live $s3_title">$s3_title=<b data-text="$s3_title ?? '…'"></b></span>
+  data-on:input="$s3_slug = App.slugify($s3_title)" /&gt; <span class="live-chip" title="live $s3_slug">$s3_slug=<b data-text="$s3_slug ?? '…'"></b></span>
 &lt;span data-text="App.wordCount($s3_title)"&gt;&lt;/span&gt;</pre>
     </div>
   </div>
@@ -192,9 +196,9 @@ window.App.slugify = (s) =&gt; s.toLowerCase()
       </div>
     </div>
     <div class="card"><h3>Code</h3>
-<pre>&lt;input data-bind:s4_q
+<pre>&lt;input data-bind:s4_q <span class="live-chip" title="live $s4_q">$s4_q=<b data-text="$s4_q ?? '…'"></b></span>
   data-on:input="App.fakeLookup(el, $s4_q)" /&gt;
-&lt;div data-on:fakelookup__window="$s4_result = evt.detail.label"&gt;&lt;/div&gt;
+&lt;div data-on:fakelookup__window="$s4_result = evt.detail.label"&gt;&lt;/div&gt; <span class="live-chip" title="live $s4_result">$s4_result=<b data-text="$s4_result ?? '…'"></b></span>
 
 async function fakeLookup(el, q) {
   await sleep(400);
@@ -221,7 +225,7 @@ async function fakeLookup(el, q) {
     </div>
     <div class="card"><h3>Code</h3>
 <pre>&lt;color-picker
-  data-attr:value="$s7_color"
+  data-attr:value="$s7_color" <span class="live-chip" title="live $s7_color">$s7_color=<b data-text="$s7_color ?? '…'"></b></span>
   data-on:color-input="$s7_color = evt.detail.value"
 &gt;&lt;/color-picker&gt;
 
