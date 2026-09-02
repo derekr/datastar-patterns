@@ -33,6 +33,7 @@
   .callout { border-left:4px solid var(--acc); background:#ecfeff; padding:10px 14px; border-radius:0 8px 8px 0; margin:16px 0; }
   .btn { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:14px; }
   .btn.secondary { background:#e2e8f0; color:#111; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
   input[type=text], input[type=number], select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; }
   .pager { display:flex; justify-content:space-between; margin-top:28px; }
   table.results { width:100%; border-collapse:collapse; font-size:14px; }
@@ -118,6 +119,7 @@ data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</pre>
   data-on:click="$s2_placed = true" <span class="live-chip" title="live $s2_placed">$s2_placed=<b data-text="$s2_placed ?? false"></b></span>
 &gt;Checkout × &lt;span data-text="$s2_qty"&gt;&lt;/span&gt;
 &lt;/button&gt;
+&lt;style&gt;.btn:disabled{opacity:.45;cursor:not-allowed}&lt;/style&gt;
 &lt;p data-show="$s2_placed"&gt;
   ✅ Order placed: &lt;strong data-text="$s2_qty"&gt;&lt;/strong&gt;
 &lt;/p&gt;
