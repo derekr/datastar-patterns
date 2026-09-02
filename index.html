@@ -86,10 +86,15 @@
   .t-ev { color:var(--aqua); } .t-num { color:var(--purple); }
   /* ---------- right rail ---------- */
   .rail { display:flex; flex-direction:column; gap:16px; }
-  .rail .card ol { margin:8px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; font-size:13px; color:var(--muted); }
-  .rail .card ol li { display:flex; gap:10px; align-items:flex-start; line-height:1.5; }
-  .rail .card ol .rn { flex:none; width:20px; height:20px; border-radius:99px; border:1px solid var(--olive); color:var(--green); font-size:11px; display:flex; align-items:center; justify-content:center; }
-  .rail .ok { margin-top:12px; border:1px solid rgba(184,187,38,.4); background:rgba(184,187,38,.08); border-radius:9px; padding:10px 12px; font-size:13px; color:var(--ink); }
+  .rail ol, .infopop ol { margin:8px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; font-size:13px; color:var(--muted); }
+  .rail ol li, .infopop ol li { display:flex; gap:10px; align-items:flex-start; line-height:1.5; }
+  .rail .rn, .infopop .rn { flex:none; width:20px; height:20px; border-radius:99px; border:1px solid var(--olive); color:var(--green); font-size:11px; display:flex; align-items:center; justify-content:center; }
+  .ok { margin-top:12px; border:1px solid rgba(184,187,38,.4); background:rgba(184,187,38,.08); border-radius:9px; padding:10px 12px; font-size:13px; color:var(--ink); }
+  .inforow { display:flex; gap:8px; flex-wrap:wrap; }
+  .infolabel { background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:99px; padding:5px 13px; font-size:12.5px; cursor:pointer; }
+  .infolabel:hover { color:var(--green); border-color:var(--olive); }
+  .infopop { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:16px; margin:8px 0 0; max-width:min(340px, calc(100vw - 32px)); position-area:bottom; position-try-fallbacks:flip-block; }
+  .infopop::backdrop { background:rgba(0,0,0,.3); }
   .flow { display:flex; flex-direction:column; align-items:center; margin-top:6px; }
   .fnode { border:1px solid var(--faint); border-radius:8px; padding:7px 14px; font-size:12px; font-family:ui-monospace, monospace; background:var(--panel2); max-width:100%; }
   .fn-green { border-color:var(--olive); color:var(--green); }
@@ -154,7 +159,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a1" popovertarget="hw1">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a2" popovertarget="df1">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw1" style="position-anchor:--a1" popover>
       <ol>
         <li><span class="rn">1</span><span>Click fires <code class="inline">@post</code> / <code class="inline">@get</code> on the button.</span></li>
         <li><span class="rn">2</span><span>Backend streams back SSE events.</span></li>
@@ -162,7 +171,7 @@
       </ol>
       <div class="ok">✔ No frontend state — the DOM is the state.</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df1" style="position-anchor:--a2" popover>
       <div class="flow">
         <div class="fnode fn-green">Click (@post)</div><div class="farrow"></div>
         <div class="fnode fn-gray">SSE stream</div><div class="farrow"></div>
@@ -217,7 +226,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a3" popovertarget="hw2">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a4" popovertarget="df2">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw2" style="position-anchor:--a3" popover>
       <ol>
         <li><span class="rn">1</span><span><code class="inline">data-bind</code> keeps the input and the signal in sync.</span></li>
         <li><span class="rn">2</span><span>Any expression reading the signal re-runs on change.</span></li>
@@ -225,7 +238,7 @@
       </ol>
       <div class="ok">✔ Signals stay local until an action sends them.</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df2" style="position-anchor:--a4" popover>
       <div class="flow">
         <div class="fnode fn-green">Input (data-bind)</div><div class="farrow"></div>
         <div class="fnode fn-yellow">signal</div><div class="farrow"></div>
@@ -276,7 +289,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a5" popovertarget="hw3">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a6" popovertarget="df3">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw3" style="position-anchor:--a5" popover>
       <ol>
         <li><span class="rn">1</span><span>Typing updates the signal; the request is debounced 250ms.</span></li>
         <li><span class="rn">2</span><span>Signals ride along as <code class="inline">?datastar={…}</code>.</span></li>
@@ -284,7 +301,7 @@
       </ol>
       <div class="ok">✔ One keystroke → one request → elements + signals patched.</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df3" style="position-anchor:--a6" popover>
       <div class="flow">
         <div class="fnode fn-green">Signal (typed)</div><div class="farrow"></div>
         <div class="fnode fn-gray">debounced @get</div><div class="farrow"></div>
@@ -327,7 +344,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a7" popovertarget="hw4">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a8" popovertarget="df4">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw4" style="position-anchor:--a7" popover>
       <ol>
         <li><span class="rn">1</span><span>Expression calls <code class="inline">App.fn(signal)</code> with signal values.</span></li>
         <li><span class="rn">2</span><span>Plain JS runs — reusable, unit-testable.</span></li>
@@ -335,7 +356,7 @@
       </ol>
       <div class="ok">✔ Sync helpers return values; async needs events (next).</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df4" style="position-anchor:--a8" popover>
       <div class="flow">
         <div class="fnode fn-green">Signal (arg)</div><div class="farrow"></div>
         <div class="fnode fn-yellow">App helper</div><div class="farrow"></div>
@@ -382,7 +403,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a9" popovertarget="hw5">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a10" popovertarget="df5">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw5" style="position-anchor:--a9" popover>
       <ol>
         <li><span class="rn">1</span><span>You pass data down via <code class="inline">props / attributes</code>.</span></li>
         <li><span class="rn">2</span><span>Async JS does the work.</span></li>
@@ -390,7 +415,7 @@
       </ol>
       <div class="ok">✔ Datastar listens and updates signals.</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df5" style="position-anchor:--a10" popover>
       <div class="flow">
         <div class="fnode fn-green">Datastar (Signals)</div><div class="farrow"></div>
         <div class="fnode fn-gray">data-bind / data-on:*</div><div class="farrow"></div>
@@ -438,7 +463,11 @@
   </div>
   </div>
   <aside class="rail">
-    <div class="card"><h3>☰ How it works</h3>
+    <div class="inforow">
+      <button class="infolabel" style="anchor-name:--a11" popovertarget="hw6">☰ How it works</button>
+      <button class="infolabel" style="anchor-name:--a12" popovertarget="df6">◈ Data flow</button>
+    </div>
+    <div class="infopop" id="hw6" style="position-anchor:--a11" popover>
       <ol>
         <li><span class="rn">1</span><span>Signal flows down as a plain <code class="inline">value</code> attribute.</span></li>
         <li><span class="rn">2</span><span>Component renders internally (shadow DOM).</span></li>
@@ -446,7 +475,7 @@
       </ol>
       <div class="ok">✔ Component stays Datastar-agnostic.</div>
     </div>
-    <div class="card"><h3>◈ Data flow</h3>
+    <div class="infopop" id="df6" style="position-anchor:--a12" popover>
       <div class="flow">
         <div class="fnode fn-green">Signal</div><div class="farrow"></div>
         <div class="fnode fn-gray">attr prop (value)</div><div class="farrow"></div>
@@ -516,6 +545,14 @@ document.addEventListener('keydown', e=>{
   if(e.target.matches('input,textarea')) return;
   if(e.key==='ArrowRight') go(cur+1);
   if(e.key==='ArrowLeft') go(cur-1);
+});
+// hover opens info popovers (click toggles natively via popovertarget)
+document.querySelectorAll('.infolabel').forEach(b=>{
+  const p = document.getElementById(b.getAttribute('popovertarget'));
+  if(!p || !p.showPopover) return;
+  b.addEventListener('mouseenter', ()=>{ try{ p.showPopover(); }catch{} });
+  b.addEventListener('mouseleave', ()=>{ setTimeout(()=>{ if(!p.matches(':hover')) p.hidePopover(); }, 150); });
+  p.addEventListener('mouseleave', ()=>p.hidePopover());
 });
 go(Math.max(0,(parseInt((location.hash||'').replace('#step-',''),10)||1)-1));
 
