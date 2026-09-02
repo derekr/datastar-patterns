@@ -69,7 +69,6 @@
         <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
         <span data-show="$s1_loading" style="display:none"> ⏳ $s1_loading=true</span>
         <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
-        <p class="sig">count signal: <span data-text="$s1_count ?? '… (click Increment)'"></span></p>
         <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
       </div>
     </div>
@@ -78,14 +77,10 @@
   data-indicator:s1_loading&gt;Slow fetch&lt;/button&gt; <span class="live-chip" title="live $s1_loading">$s1_loading=<b data-text="$s1_loading ?? false"></b></span>
 &lt;span data-show="$s1_loading"&gt;⏳ loading…&lt;/span&gt;
 &lt;div id="s5_counter"&gt;…&lt;/div&gt;
-&lt;span data-text="$s1_count"&gt;&lt;/span&gt; <span class="live-chip" title="live $s1_count">$s1_count=<b data-text="$s1_count ?? '…'"></b></span>
 
-# backend returns SSE (one request → two patches):
+# backend returns SSE:
 event: datastar-patch-elements
-data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;
-
-event: datastar-patch-signals
-data: signals {s1_count: 42}</pre>
+data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</pre>
     </div>
   </div>
   <div class="callout"><strong>Pattern:</strong> one request → 0..n SSE events. Patch HTML with morphing (send fat HTML, only diffs apply). Use <code class="inline">data-indicator:name</code> <strong>on the same element that fires the action</strong> — Datastar sets <code class="inline">$name=true</code> while that element's request is in flight (it matches fetch events by element identity, so a wrapper div won't catch child buttons). Read it anywhere with <code class="inline">data-show="$name"</code>. Reach for signals only when you need client reactivity (next).</div>
@@ -331,8 +326,8 @@ async function fakeBackend(urlStr, bodyText){
       `event: datastar-patch-signals\ndata: signals {s5_count: ${rows.length}}`
     ), 120);
   }
-  if(path==='/api/inc'){ serverCount++; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">${serverCount} (from server)</div>`, `event: datastar-patch-signals\ndata: signals {s1_count: ${serverCount}}`), 150); }
-  if(path==='/api/reset'){ serverCount = 0; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">0 (from server)</div>`, `event: datastar-patch-signals\ndata: signals {s1_count: 0}`), 150); }
+  if(path==='/api/inc'){ serverCount++; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">${serverCount} (from server)</div>`), 150); }
+  if(path==='/api/reset'){ serverCount = 0; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">0 (from server)</div>`), 150); }
   if(path==='/api/slow'){ return sseResp(sse(`event: datastar-patch-elements\ndata: selector #s6_out\ndata: mode inner\ndata: elements <strong>Done at ${new Date().toLocaleTimeString()} — patched by backend.</strong>`), 900); }
   return null;
 }
