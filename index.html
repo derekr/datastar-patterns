@@ -250,18 +250,18 @@
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signal</span> (typed) → <span class="pe">debounced @get</span> (?datastar={…}) → backend patches elements <em>and</em> signals.</div></div>
   <div class="grid2">
     <div class="card"><h3>Try it</h3>
-      <div class="demo" data-signals:s5_search="''">
+      <div class="demo" data-signals:s5_search="''" data-signals:s5_count="6">
         <input type="text" placeholder="Search contacts…" data-bind:s5_search
           data-on:input__debounce.250ms="@get('/api/search')" />
         <div style="font-size:13px;color:var(--muted)">sent: <code class="inline">?datastar={"s5_search":"…"}</code></div>
-        <div id="s5_results"><em>Type to search — backend morphs this div.</em></div>
+        <div id="s5_results"><table class="results"><tr><th>First</th><th>Last</th></tr><tr><td>Norwood</td><td>Hills</td></tr><tr><td>Jessika</td><td>Buckridge</td></tr><tr><td>Lawrence</td><td>Herzog</td></tr><tr><td>Peyton</td><td>Rippin</td></tr><tr><td>Justina</td><td>Farrell</td></tr><tr><td>Kaleb</td><td>Beier</td></tr></table></div>
         <p class="sig">matches: <span data-text="$s5_count ?? '…'"></span></p>
       </div>
     </div>
     <div class="card"><h3>Code <button class="copy" data-copy="#code3">⧉ Copy</button></h3>
 <pre id="code3"><span class="t-tag">&lt;input</span> <span class="t-attr">data-bind:s5_search</span> <span class="live-chip" title="live $s5_search">$s5_search=<b data-text="$s5_search ?? '…'"></b></span>
   <span class="t-attr">data-on:input__debounce.250ms</span>=<span class="t-str">"@get('/api/search')"</span> <span class="t-tag">/&gt;</span>
-<span class="t-tag">&lt;div</span> <span class="t-attr">id</span>=<span class="t-str">"s5_results"</span><span class="t-tag">&gt;&lt;/div&gt;</span>
+<span class="t-tag">&lt;div</span> <span class="t-attr">id</span>=<span class="t-str">"s5_results"</span><span class="t-tag">&gt;</span><span class="t-cm">&lt;table&gt;…full table by default…&lt;/table&gt;</span><span class="t-tag">&lt;/div&gt;</span>
 <span class="t-tag">&lt;span</span> <span class="t-attr">data-text</span>=<span class="t-str">"$s5_count"</span><span class="t-tag">&gt;&lt;/span&gt;</span> <span class="live-chip" title="live $s5_count">$s5_count=<b data-text="$s5_count ?? '…'"></b></span>
 
 <span class="t-cm">// shim returns:</span>
