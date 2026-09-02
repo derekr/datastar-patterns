@@ -78,8 +78,8 @@
   .sig { font-family:ui-monospace, monospace; font-size:12px; color:var(--muted); }
   .live-chip { display:inline-block; background:rgba(184,187,38,.1); border:1px solid rgba(184,187,38,.5); color:var(--green); border-radius:99px; padding:0 8px; font-size:11px; font-style:normal; font-weight:400; margin-left:6px; vertical-align:middle; white-space:nowrap; font-family:ui-monospace, monospace; }
   .live-chip b { font-weight:700; }
-  .delayed { opacity:0; animation:delayed-in 0s .3s forwards; }
-  @keyframes delayed-in { to { opacity:1; } }
+  .delayed { animation:delayed-in 0s .3s backwards; }
+  @keyframes delayed-in { from { position:absolute; visibility:hidden; opacity:0; } }
   /* code tokens */
   .t-tag { color:var(--blue); } .t-attr { color:var(--orange); } .t-str { color:var(--green); }
   .t-kw { color:var(--purple); } .t-fn { color:var(--yellow); } .t-cm { color:var(--faint); font-style:italic; }
@@ -144,8 +144,8 @@
   <span class="t-attr">data-indicator:s1_loading</span><span class="t-tag">&gt;</span>Slow fetch<span class="t-tag">&lt;/button&gt;</span> <span class="live-chip" title="live $s1_loading">$s1_loading=<b data-text="$s1_loading ?? false"></b></span>
 <span class="t-tag">&lt;span</span> <span class="t-attr">data-show</span>=<span class="t-str">"$s1_loading"</span> <span class="t-attr">class</span>=<span class="t-str">"delayed"</span><span class="t-tag">&gt;</span>⏳ loading…<span class="t-tag">&lt;/span&gt;</span>
 <span class="t-tag">&lt;div</span> <span class="t-attr">id</span>=<span class="t-str">"s5_counter"</span><span class="t-tag">&gt;</span>…<span class="t-tag">&lt;/div&gt;</span>
-<span class="t-tag">&lt;style&gt;</span><span class="t-ev">.delayed{opacity:0;animation:delayed-in 0s .3s forwards}</span>
-<span class="t-ev">@keyframes delayed-in{to{opacity:1}}</span><span class="t-tag">&lt;/style&gt;</span>
+<span class="t-tag">&lt;style&gt;</span><span class="t-ev">.delayed{animation:delayed-in 0s .3s backwards}</span>
+<span class="t-ev">@keyframes delayed-in{from{position:absolute;visibility:hidden;opacity:0}}</span><span class="t-tag">&lt;/style&gt;</span>
 
 <span class="t-cm"># backend returns SSE:</span>
 <span class="t-ev">event: datastar-patch-elements</span>
