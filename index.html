@@ -67,7 +67,7 @@
         <button class="btn" data-on:click="@post('/api/inc')" data-indicator:s1_loading>Increment (server)</button>
         <button class="btn secondary" data-on:click="@post('/api/reset')" data-indicator:s1_loading>Reset</button>
         <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
-        <span data-show="$s1_loading" style="display:none"> ⏳ $s1_loading=true</span>
+        <span data-show="$s1_loading" style="display:none"> ⏳ loading…</span>
         <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
         <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
       </div>
