@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Datastar Patterns — backend first, signals when you need them</title>
+<title>Datastar Patterns — tour prototype (edit + run)</title>
 <script type="module" src="./vendor/datastar.js"></script>
+<link rel="stylesheet" href="./vendor/codemirror/lib/codemirror.css" />
+<link rel="stylesheet" href="./vendor/codemirror/theme/gruvbox-dark.css" />
 <style>
   :root {
     --bg:#1d2021; --panel:#282828; --panel2:#232627; --code:#161819;
@@ -13,18 +15,20 @@
     --purple:#d3869b; --aqua:#8ec07c; --blue:#83a598; --red:#fb4934;
   }
   * { box-sizing: border-box; }
+  @font-face { font-family:'JetBrains Mono'; src:url('./vendor/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight:400; font-display:swap; }
+  @font-face { font-family:'JetBrains Mono'; src:url('./vendor/fonts/jetbrains-mono-700.woff2') format('woff2'); font-weight:700; font-display:swap; }
   body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); }
-  /* ---------- top bar ---------- */
   header.top { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 20px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:10; }
   header.top .logo { font-weight:800; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:10px; }
   header.top .logo .mark { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:7px; background:var(--olive); color:#1d2021; font-size:15px; }
   header.top .pill { font-size:12px; color:var(--green); background:rgba(184,187,38,.12); border:1px solid rgba(184,187,38,.35); border-radius:99px; padding:2px 10px; white-space:nowrap; }
   header.top .spacer { flex:1; }
   header.top .shim { font-family:ui-monospace, monospace; font-size:12px; color:var(--muted); }
-  header.top .term { color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:4px 10px; text-decoration:none; font-family:ui-monospace, monospace; font-size:13px; background:var(--panel2); }
-  header.top .term:hover { border-color:var(--olive); }
-  /* ---------- layout ---------- */
+  #menuBtn { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:4px 10px; cursor:pointer; font-size:14px; }
+  #menuBtn:hover { border-color:var(--olive); }
   .layout { display:grid; grid-template-columns:230px 1fr; min-height:calc(100vh - 48px); }
+  body.navhidden .layout { grid-template-columns:1fr; }
+  body.navhidden nav.side { display:none; }
   nav.side { border-right:1px solid var(--line); background:var(--panel); padding:14px 12px; display:flex; flex-direction:column; gap:4px; }
   nav.side button { display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left; border:0; background:none; padding:10px; border-radius:9px; cursor:pointer; font-size:13.5px; color:var(--ink); }
   nav.side button small { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
@@ -36,31 +40,31 @@
   nav.side button.active .n { border-color:var(--olive); color:#1d2021; background:var(--olive); font-weight:700; }
   nav.side .built { margin-top:auto; border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13px; color:var(--muted); }
   nav.side .built a { color:var(--ink); text-decoration:none; display:block; margin-top:6px; }
-  nav.side .built a:hover { color:var(--green); }
   main { padding:26px 28px; min-width:0; }
-  section.step { display:none; }
-  section.step.active { display:block; }
-  .step-grid { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:18px; align-items:start; }
-  @media (max-width:1100px){ .step-grid{grid-template-columns:1fr} }
-  @media (max-width:800px){ .layout{grid-template-columns:1fr} nav.side{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid var(--line)} nav.side button{min-width:200px} nav.side .built{display:none} }
+  /* go-tour two-column: explainer | editor+demo */
+  .step-grid { display:grid; grid-template-columns:minmax(0,5fr) minmax(0,7fr); gap:20px; align-items:start; }
+  @media (max-width:1000px){ .step-grid{grid-template-columns:1fr} }
+  @media (max-width:800px){ .layout{grid-template-columns:1fr} nav.side{display:none} }
   h2 { margin:0 0 10px; font-size:22px; }
   p.lead { color:var(--muted); font-size:15px; line-height:1.6; margin:0 0 16px; }
-  .grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:16px; }
-  @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
-  .card h3 { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:flex; align-items:center; gap:8px; }
-  .card h3 .copy { margin-left:auto; }
-  .copy { background:none; border:1px solid var(--line); color:var(--muted); border-radius:7px; padding:3px 9px; font-size:12px; cursor:pointer; }
-  .copy:hover { color:var(--green); border-color:var(--olive); }
-  pre { background:var(--code); color:var(--ink); padding:14px; border-radius:10px; overflow:auto; font-size:12.5px; line-height:1.65; border:1px solid var(--line); margin:0; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
-  code.inline { background:#3c3836; color:var(--ink); padding:2px 7px; border-radius:6px; font-size:.88em; font-family:ui-monospace, monospace; }
-  .demo { border:2px dashed #504945; border-radius:12px; padding:16px; background:var(--panel2); }
-  .demo p { margin:10px 0; }
-  .demo hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
   .pattern { border:1px solid rgba(184,187,38,.4); background:rgba(184,187,38,.08); padding:12px 16px; border-radius:10px; margin:0 0 16px; font-size:14px; }
   .pattern .ph { font-weight:700; margin-bottom:4px; }
   .pattern .pd { color:var(--green); font-family:ui-monospace, monospace; font-size:13px; }
   .pattern .pe { color:var(--orange); font-family:ui-monospace, monospace; font-size:13px; }
+  .how { font-size:14px; color:var(--muted); line-height:1.6; margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px; }
+  .how li { display:flex; gap:10px; align-items:flex-start; }
+  .how .rn { flex:none; width:20px; height:20px; border-radius:99px; border:1px solid var(--olive); color:var(--green); font-size:11px; display:flex; align-items:center; justify-content:center; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card + .card { margin-top:16px; }
+  .card h3 { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .card h3 .right { margin-left:auto; display:flex; gap:8px; }
+  .mini { background:none; border:1px solid var(--line); color:var(--muted); border-radius:7px; padding:3px 10px; font-size:12px; cursor:pointer; }
+  .mini:hover { color:var(--green); border-color:var(--olive); }
+  .mini.primary { color:var(--green); border-color:var(--olive); }
+  code.inline { background:#3c3836; color:var(--ink); padding:2px 7px; border-radius:6px; font-size:.88em; font-family:ui-monospace, monospace; }
+  .demo { border:2px dashed #504945; border-radius:12px; padding:16px; background:var(--panel2); }
+  .demo p { margin:10px 0; }
+  .demo hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
   .btn { background:var(--olive); color:#1d2021; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:14px; font-weight:600; }
   .btn:hover { background:var(--green); }
   .btn.secondary { background:transparent; color:var(--ink); border:1px solid #504945; font-weight:400; }
@@ -69,494 +73,267 @@
   input[type=text], input[type=number], select { padding:8px 10px; border:1px solid #504945; border-radius:8px; font-size:14px; background:#1d2021; color:var(--ink); }
   input::placeholder { color:var(--faint); }
   .pager { display:flex; justify-content:space-between; margin-top:22px; }
-  .pager .btn.secondary { min-width:110px; }
-  .pager .btn.next { min-width:110px; }
   table.results { width:100%; border-collapse:collapse; font-size:14px; }
   table.results td, table.results th { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; }
   kbd { background:#3c3836; color:var(--ink); border:1px solid #504945; border-radius:6px; padding:1px 7px; font-size:12px; font-family:ui-monospace, monospace; }
   footer.hint { color:var(--muted); font-size:13px; margin-top:14px; }
   .sig { font-family:ui-monospace, monospace; font-size:12px; color:var(--muted); }
-  .live-chip { display:inline-block; background:rgba(184,187,38,.1); border:1px solid rgba(184,187,38,.5); color:var(--green); border-radius:99px; padding:0 8px; font-size:11px; font-style:normal; font-weight:400; margin-left:6px; vertical-align:middle; white-space:nowrap; font-family:ui-monospace, monospace; }
-  .live-chip b { font-weight:700; }
   .delayed { animation:delayed-in 0s .3s backwards; }
   @keyframes delayed-in { from { position:absolute; visibility:hidden; opacity:0; } }
-  /* code tokens */
-  .t-tag { color:var(--blue); } .t-attr { color:var(--orange); } .t-str { color:var(--green); }
-  .t-kw { color:var(--purple); } .t-fn { color:var(--yellow); } .t-cm { color:var(--faint); font-style:italic; }
-  .t-ev { color:var(--aqua); } .t-num { color:var(--purple); }
-  /* ---------- right rail ---------- */
-  .rail { display:flex; flex-direction:column; gap:16px; }
-  .rail ol, .infopop ol { margin:8px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; font-size:13px; color:var(--muted); }
-  .rail ol li, .infopop ol li { display:flex; gap:10px; align-items:flex-start; line-height:1.5; }
-  .rail .rn, .infopop .rn { flex:none; width:20px; height:20px; border-radius:99px; border:1px solid var(--olive); color:var(--green); font-size:11px; display:flex; align-items:center; justify-content:center; }
-  .ok { margin-top:12px; border:1px solid rgba(184,187,38,.4); background:rgba(184,187,38,.08); border-radius:9px; padding:10px 12px; font-size:13px; color:var(--ink); }
-  .inforow { display:flex; gap:8px; flex-wrap:wrap; }
-  .infolabel { background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:99px; padding:5px 13px; font-size:12.5px; cursor:pointer; }
-  .infolabel:hover { color:var(--green); border-color:var(--olive); }
-  .infopop { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:16px; margin:8px 0 0; max-width:min(340px, calc(100vw - 32px)); position-area:bottom; position-try-fallbacks:flip-block; }
-  .infopop::backdrop { background:rgba(0,0,0,.3); }
-  .flow { display:flex; flex-direction:column; align-items:center; margin-top:6px; }
-  .fnode { border:1px solid var(--faint); border-radius:8px; padding:7px 14px; font-size:12px; font-family:ui-monospace, monospace; background:var(--panel2); max-width:100%; }
-  .fn-green { border-color:var(--olive); color:var(--green); }
-  .fn-gray { border-color:#665c54; color:var(--muted); }
-  .fn-yellow { border-color:#b57614; color:var(--yellow); }
-  .fn-orange { border-color:#af3a03; color:var(--orange); }
-  .fn-purple { border-color:#8f3f71; color:var(--purple); }
-  .farrow { width:0; height:20px; border-left:2px dashed #665c54; }
-  .fsplit { display:flex; gap:10px; justify-content:center; width:100%; }
-  .fsplit .fnode { flex:1; text-align:center; }
-  .qlinks { display:flex; gap:16px; margin-top:6px; font-size:13px; }
-  .qlinks a { color:var(--muted); text-decoration:none; }
-  .qlinks a:hover { color:var(--green); }
+  pre { background:var(--code); color:var(--ink); padding:14px; border-radius:10px; overflow:auto; font-size:12.5px; line-height:1.65; border:1px solid var(--line); margin:0; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
   #inspector { margin-top:22px; }
-  #inspector pre { max-height:340px; }
+  /* codemirror */
+  .CodeMirror { height:auto; min-height:180px; max-height:420px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:13px; font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+  /* inlay-hint style live signal chips */
+  .cm-hint { color:var(--faint); font-style:italic; font-size:.92em; background:rgba(184,187,38,.08); border-radius:5px; padding:0 5px; margin-left:3px; white-space:nowrap; }
 </style>
 </head>
 <body>
 
 <header class="top">
-  <a class="logo" href="#"><span class="mark">▦</span> Datastar Patterns</a>
+  <button id="menuBtn" title="toggle sidebar">☰</button>
+  <a class="logo" href="#"><span class="mark">▦</span> Datastar Patterns <span style="color:var(--faint);font-weight:400">tour</span></a>
   <span class="pill" id="stepPill">Step 1 of 6</span>
   <span class="spacer"></span>
   <span class="shim">fetch-shim backend · no server</span>
-  <a class="term" href="#inspector" title="signal inspector">&gt;_</a>
 </header>
 
 <div class="layout">
 <nav class="side" id="nav"></nav>
 <main id="main">
-
-<!-- 1: backend first -->
-<section class="step" data-title="Actions &amp; patching" data-sub="backend drives UI + indicator">
   <div class="step-grid">
-  <div>
-  <h2>1. Start here: backend drives the UI</h2>
-  <p class="lead">Default to the backend as source of truth. A click fires <code class="inline">@get/@post</code>, the backend returns SSE that <strong>patches elements</strong>. No frontend state needed. <code class="inline">data-indicator</code> gives you loading for free.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">action</span> (@get/@post) → <span class="pe">SSE patches</span> (elements). One request → 0..n events, morphed into the DOM.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it</h3>
-      <div class="demo">
-        <button class="btn" data-on:click="@post('/api/inc')" data-indicator:s1_loading>Increment (server)</button>
-        <button class="btn secondary" data-on:click="@post('/api/reset')" data-indicator:s1_loading>Reset</button>
-        <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
-        <span data-show="$s1_loading" class="delayed" style="display:none"> ⏳ loading…</span>
-        <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
-        <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
+    <div id="stepLeft"></div>
+    <div>
+      <div class="card"><h3>Editor <span class="right"><button class="mini" id="formatBtn">Format</button><button class="mini" id="resetBtn">Reset</button></span></h3>
+        <textarea id="editor"></textarea>
+      </div>
+      <div class="card"><h3>Rendered demo</h3>
+        <div id="preview"></div>
       </div>
     </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code1">⧉ Copy</button></h3>
-<pre id="code1"><span class="t-tag">&lt;button</span> <span class="t-attr">data-on:click</span>=<span class="t-str">"@get('/api/slow')"</span>
-  <span class="t-attr">data-indicator:s1_loading</span><span class="t-tag">&gt;</span>Slow fetch<span class="t-tag">&lt;/button&gt;</span> <span class="live-chip" title="live $s1_loading">$s1_loading=<b data-text="$s1_loading ?? false"></b></span>
-<span class="t-tag">&lt;span</span> <span class="t-attr">data-show</span>=<span class="t-str">"$s1_loading"</span> <span class="t-attr">class</span>=<span class="t-str">"delayed"</span><span class="t-tag">&gt;</span>⏳ loading…<span class="t-tag">&lt;/span&gt;</span>
-<span class="t-tag">&lt;div</span> <span class="t-attr">id</span>=<span class="t-str">"s5_counter"</span><span class="t-tag">&gt;</span>…<span class="t-tag">&lt;/div&gt;</span>
-<span class="t-tag">&lt;style&gt;</span><span class="t-ev">.delayed{animation:delayed-in 0s .3s backwards}</span>
-<span class="t-ev">@keyframes delayed-in{from{position:absolute;visibility:hidden;opacity:0}}</span><span class="t-tag">&lt;/style&gt;</span>
-
-<span class="t-cm"># backend returns SSE:</span>
-<span class="t-ev">event: datastar-patch-elements</span>
-<span class="t-ev">data: elements &lt;div id="s5_counter"&gt;42&lt;/div&gt;</span></pre>
-    </div>
   </div>
+  <div class="pager"><button class="btn secondary" id="backBtn">← Back</button><button class="btn" id="nextBtn">Next →</button></div>
+  <div class="card" id="inspector">
+    <h3>Signal inspector (live)</h3>
+    <pre id="inspectorPre" data-json-signals="{include: /^s\d_/}"></pre>
+    <footer class="hint">Edit the code — it re-renders as you type. Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim.</footer>
   </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a1" popovertarget="hw1">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a2" popovertarget="df1">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw1" style="position-anchor:--a1" popover>
-      <ol>
-        <li><span class="rn">1</span><span>Click fires <code class="inline">@post</code> / <code class="inline">@get</code> on the button.</span></li>
-        <li><span class="rn">2</span><span>Backend streams back SSE events.</span></li>
-        <li><span class="rn">3</span><span>Datastar morphs the patched elements in place.</span></li>
-      </ol>
-      <div class="ok">✔ No frontend state — the DOM is the state.</div>
-    </div>
-    <div class="infopop" id="df1" style="position-anchor:--a2" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Click (@post)</div><div class="farrow"></div>
-        <div class="fnode fn-gray">SSE stream</div><div class="farrow"></div>
-        <div class="fnode fn-orange">patch-elements</div><div class="farrow"></div>
-        <div class="fnode fn-purple">DOM updates</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><span></span><button class="btn next" data-goto="1">Next →</button></div>
-</section>
-
-<!-- 2: signals -->
-<section class="step" data-title="Signals &amp; forms" data-sub="reach for reactivity">
-  <div class="step-grid">
-  <div>
-  <h2>2. Reach for signals: reactivity &amp; forms</h2>
-  <p class="lead">When the UI must react <em>without</em> a round-trip — typing, toggles, conditional buttons — add signals (<code class="inline">$name</code>). They stay on the client until you send them.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">data-bind</span> (input ↔ signal) → <span class="pe">data-text / show / class / attr</span> (display). Client-only until an action sends them.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it</h3>
-      <div class="demo" data-signals:s1_name="''" data-signals:s2_qty="1" data-signals:s2_agree="false" data-signals:s2_placed="false">
-        <input type="text" placeholder="type your name" data-bind:s1_name />
-        <p>Hello, <strong data-text="$s1_name || 'stranger'"></strong>!</p>
-        <hr/>
-        <label>Qty <input type="number" min="0" max="9" data-bind:s2_qty /></label>
-        <label style="display:block;margin:8px 0"><input type="checkbox" data-bind:s2_agree /> I agree</label>
-        <button class="btn" data-attr:disabled="!$s2_agree"
-          data-on:click="$s2_placed = true"
-          data-show="$s2_qty > 0" style="display:none">Checkout × <span data-text="$s2_qty"></span></button>
-        <p class="sig" data-show="$s2_qty == 0">qty is 0 — button hides via <code>data-show</code>.</p>
-        <p data-show="$s2_placed" style="display:none">✅ Order placed: <strong data-text="$s2_qty"></strong> item(s) for <strong data-text="$s1_name || 'stranger'"></strong>.
-          <button class="btn secondary" data-on:click="$s2_placed = false; $s2_qty = 1">Start over</button></p>
-      </div>
-    </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code2">⧉ Copy</button></h3>
-<pre id="code2"><span class="t-tag">&lt;button</span>
-  <span class="t-attr">data-show</span>=<span class="t-str">"$s2_qty &gt; 0"</span> <span class="live-chip" title="live $s2_qty">$s2_qty=<b data-text="$s2_qty ?? '…'"></b></span>
-  <span class="t-attr">data-attr:disabled</span>=<span class="t-str">"!$s2_agree"</span> <span class="live-chip" title="live $s2_agree">$s2_agree=<b data-text="$s2_agree ?? false"></b></span>
-  <span class="t-attr">data-on:click</span>=<span class="t-str">"$s2_placed = true"</span> <span class="live-chip" title="live $s2_placed">$s2_placed=<b data-text="$s2_placed ?? false"></b></span>
-<span class="t-tag">&gt;</span>Checkout × <span class="t-tag">&lt;span</span> <span class="t-attr">data-text</span>=<span class="t-str">"$s2_qty"</span><span class="t-tag">&gt;&lt;/span&gt;</span>
-<span class="t-tag">&lt;/button&gt;</span>
-<span class="t-tag">&lt;style&gt;</span><span class="t-ev">.btn:disabled{opacity:.45;cursor:not-allowed}</span><span class="t-tag">&lt;/style&gt;</span>
-<span class="t-tag">&lt;p</span> <span class="t-attr">data-show</span>=<span class="t-str">"$s2_placed"</span><span class="t-tag">&gt;</span>
-  ✅ Order placed: <span class="t-tag">&lt;strong</span> <span class="t-attr">data-text</span>=<span class="t-str">"$s2_qty"</span><span class="t-tag">&gt;&lt;/strong&gt;</span>
-<span class="t-tag">&lt;/p&gt;</span>
-<span class="t-tag">&lt;p&gt;</span>Hello, <span class="t-tag">&lt;strong</span> <span class="t-attr">data-text</span>=<span class="t-str">"$s1_name"</span><span class="t-tag">&gt;&lt;/strong&gt;&lt;/p&gt;</span> <span class="live-chip" title="live $s1_name">$s1_name=<b data-text="$s1_name ?? '…'"></b></span></pre>
-    </div>
-  </div>
-  </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a3" popovertarget="hw2">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a4" popovertarget="df2">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw2" style="position-anchor:--a3" popover>
-      <ol>
-        <li><span class="rn">1</span><span><code class="inline">data-bind</code> keeps the input and the signal in sync.</span></li>
-        <li><span class="rn">2</span><span>Any expression reading the signal re-runs on change.</span></li>
-        <li><span class="rn">3</span><span>Display bindings (<code class="inline">show / text / attr</code>) patch the DOM.</span></li>
-      </ol>
-      <div class="ok">✔ Signals stay local until an action sends them.</div>
-    </div>
-    <div class="infopop" id="df2" style="position-anchor:--a4" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Input (data-bind)</div><div class="farrow"></div>
-        <div class="fnode fn-yellow">signal</div><div class="farrow"></div>
-        <div class="fnode fn-orange">show / text / attr</div><div class="farrow"></div>
-        <div class="fnode fn-purple">DOM updates</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><button class="btn secondary" data-goto="0">← Back</button><button class="btn next" data-goto="2">Next →</button></div>
-</section>
-
-<!-- 3: combined -->
-<section class="step" data-title="Signals + backend" data-sub="active search, debounced">
-  <div class="step-grid">
-  <div>
-  <h2>3. Combine: signals sent to backend</h2>
-  <p class="lead">All non-<code class="inline">_</code> signals ship with every <code class="inline">@get/@post</code> (query <code class="inline">?datastar={…}</code> or JSON body). Classic example: debounced active search.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signal</span> (typed) → <span class="pe">debounced @get</span> (?datastar={…}) → backend patches elements <em>and</em> signals.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it</h3>
-      <div class="demo" data-signals:s5_search="''" data-signals:s5_count="6">
-        <input type="text" placeholder="Search contacts…" data-bind:s5_search
-          data-on:input__debounce.250ms="@get('/api/search')" />
-        <div style="font-size:13px;color:var(--muted)">sent: <code class="inline">?datastar={"s5_search":"…"}</code></div>
-        <div id="s5_results"><table class="results"><tr><th>First</th><th>Last</th></tr><tr><td>Norwood</td><td>Hills</td></tr><tr><td>Jessika</td><td>Buckridge</td></tr><tr><td>Lawrence</td><td>Herzog</td></tr><tr><td>Peyton</td><td>Rippin</td></tr><tr><td>Justina</td><td>Farrell</td></tr><tr><td>Kaleb</td><td>Beier</td></tr></table></div>
-        <p class="sig">matches: <span data-text="$s5_count ?? '…'"></span></p>
-      </div>
-    </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code3">⧉ Copy</button></h3>
-<pre id="code3"><span class="t-tag">&lt;input</span> <span class="t-attr">data-bind:s5_search</span> <span class="live-chip" title="live $s5_search">$s5_search=<b data-text="$s5_search ?? '…'"></b></span>
-  <span class="t-attr">data-on:input__debounce.250ms</span>=<span class="t-str">"@get('/api/search')"</span> <span class="t-tag">/&gt;</span>
-<span class="t-tag">&lt;div</span> <span class="t-attr">id</span>=<span class="t-str">"s5_results"</span><span class="t-tag">&gt;</span><span class="t-cm">&lt;table&gt;…full table by default…&lt;/table&gt;</span><span class="t-tag">&lt;/div&gt;</span>
-<span class="t-tag">&lt;span</span> <span class="t-attr">data-text</span>=<span class="t-str">"$s5_count"</span><span class="t-tag">&gt;&lt;/span&gt;</span> <span class="live-chip" title="live $s5_count">$s5_count=<b data-text="$s5_count ?? '…'"></b></span>
-
-<span class="t-cm">// shim returns:</span>
-<span class="t-ev">event: datastar-patch-elements</span>
-<span class="t-ev">data: selector #s5_results</span>
-<span class="t-ev">data: mode inner</span>
-<span class="t-ev">data: elements &lt;table&gt;…&lt;/table&gt;</span>
-
-<span class="t-ev">event: datastar-patch-signals</span>
-<span class="t-ev">data: signals {s5_count: 3}</span></pre>
-    </div>
-  </div>
-  </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a5" popovertarget="hw3">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a6" popovertarget="df3">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw3" style="position-anchor:--a5" popover>
-      <ol>
-        <li><span class="rn">1</span><span>Typing updates the signal; the request is debounced 250ms.</span></li>
-        <li><span class="rn">2</span><span>Signals ride along as <code class="inline">?datastar={…}</code>.</span></li>
-        <li><span class="rn">3</span><span>Backend morphs the results div and patches the count.</span></li>
-      </ol>
-      <div class="ok">✔ One keystroke → one request → elements + signals patched.</div>
-    </div>
-    <div class="infopop" id="df3" style="position-anchor:--a6" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Signal (typed)</div><div class="farrow"></div>
-        <div class="fnode fn-gray">debounced @get</div><div class="farrow"></div>
-        <div class="fnode fn-orange">patch elements + signals</div><div class="farrow"></div>
-        <div class="fnode fn-purple">DOM updates</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><button class="btn secondary" data-goto="1">← Back</button><button class="btn next" data-goto="3">Next →</button></div>
-</section>
-
-<!-- 4: sync JS -->
-<section class="step" data-title="Break out to JS" data-sub="plain functions, props in">
-  <div class="step-grid">
-  <div>
-  <h2>4. When expressions get big → plain JS</h2>
-  <p class="lead">Datastar expressions are JS-like, but for reuse/tests/multi-line logic extract to <code class="inline">window.App</code>. Pass signals as arguments, use the return value.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">props in</span> (signal args) → <span class="pe">plain function</span> → return value out. Sync only.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it</h3>
-      <div class="demo" data-signals:s3_title="'Hello World!'" data-signals:s3_slug="'hello-world'">
-        <input type="text" data-bind:s3_title data-on:input="$s3_slug = App.slugify($s3_title)" />
-        <p>slug: <code class="inline" data-text="$s3_slug"></code></p>
-        <p>words: <strong data-text="App.wordCount($s3_title)"></strong> · shouty: <span data-text="App.shout($s3_title)"></span></p>
-      </div>
-    </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code4">⧉ Copy</button></h3>
-<pre id="code4"><span class="t-cm">// plain JS — testable, reusable</span>
-<span class="t-ev">window.App.slugify</span> = (<span class="t-attr">s</span>) <span class="t-kw">=&gt;</span> s.<span class="t-fn">toLowerCase</span>()
-  .<span class="t-fn">trim</span>().<span class="t-fn">replace</span>(<span class="t-str">/[^a-z0-9]+/g</span>,<span class="t-str">'-'</span>).<span class="t-fn">replace</span>(<span class="t-str">/^-|-$/g</span>,<span class="t-str">''</span>);
-
-<span class="t-tag">&lt;input</span> <span class="t-attr">data-bind:s3_title</span> <span class="live-chip" title="live $s3_title">$s3_title=<b data-text="$s3_title ?? '…'"></b></span>
-  <span class="t-attr">data-on:input</span>=<span class="t-str">"$s3_slug = App.slugify($s3_title)"</span> <span class="t-tag">/&gt;</span> <span class="live-chip" title="live $s3_slug">$s3_slug=<b data-text="$s3_slug ?? '…'"></b></span>
-<span class="t-tag">&lt;span</span> <span class="t-attr">data-text</span>=<span class="t-str">"App.wordCount($s3_title)"</span><span class="t-tag">&gt;&lt;/span&gt;</span></pre>
-    </div>
-  </div>
-  </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a7" popovertarget="hw4">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a8" popovertarget="df4">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw4" style="position-anchor:--a7" popover>
-      <ol>
-        <li><span class="rn">1</span><span>Expression calls <code class="inline">App.fn(signal)</code> with signal values.</span></li>
-        <li><span class="rn">2</span><span>Plain JS runs — reusable, unit-testable.</span></li>
-        <li><span class="rn">3</span><span>Return value flows back into a signal or the DOM.</span></li>
-      </ol>
-      <div class="ok">✔ Sync helpers return values; async needs events (next).</div>
-    </div>
-    <div class="infopop" id="df4" style="position-anchor:--a8" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Signal (arg)</div><div class="farrow"></div>
-        <div class="fnode fn-yellow">App helper</div><div class="farrow"></div>
-        <div class="fnode fn-orange">return value</div><div class="farrow"></div>
-        <div class="fnode fn-purple">DOM updates</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><button class="btn secondary" data-goto="2">← Back</button><button class="btn next" data-goto="4">Next →</button></div>
-</section>
-
-<!-- 5: async -->
-<section class="step" data-title="Async JS → events up" data-sub="CustomEvent pattern">
-  <div class="step-grid">
-  <div>
-  <h2>5. Async JS: events up</h2>
-  <p class="lead">Datastar won't <code class="inline">await</code> async code. Helper takes <code class="inline">(el, data)</code>, works, then <code class="inline">el.dispatchEvent(new CustomEvent(...))</code>. Datastar listens with <code class="inline">data-on:myevent</code>.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">props down</span> (args) → <span class="pe">event up</span> (<code class="inline">detail</code>). Same shape as web components.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it</h3>
-      <div class="demo" data-signals:s4_result="'…'" data-signals:s4_q="'datastar'">
-        <input type="text" data-bind:s4_q data-on:input="App.fakeLookup(el, $s4_q)" />
-        <div data-on:fakelookup__window="$s4_result = evt.detail.label"></div>
-        <p>result: <strong data-text="$s4_result"></strong></p>
-      </div>
-    </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code5">⧉ Copy</button></h3>
-<pre id="code5"><span class="t-tag">&lt;input</span> <span class="t-attr">data-bind:s4_q</span> <span class="t-attr">data-on:input</span>=<span class="t-str">"App.fakeLookup(el, $s4_q)"</span> <span class="t-tag">/&gt;</span> <span class="live-chip" title="live $s4_q">$s4_q=<b data-text="$s4_q ?? '…'"></b></span>
-
-<span class="t-tag">&lt;div</span> <span class="t-attr">data-on:fakelookup__window</span>=<span class="t-str">"$s4_result = evt.detail.label"</span><span class="t-tag">&gt;&lt;/div&gt;</span> <span class="live-chip" title="live $s4_result">$s4_result=<b data-text="$s4_result ?? '…'"></b></span>
-
-<span class="t-kw">async function</span> <span class="t-fn">fakeLookup</span>(el, q) {
-  <span class="t-kw">await</span> <span class="t-fn">sleep</span>(<span class="t-num">400</span>);
-  el.<span class="t-fn">dispatchEvent</span>(<span class="t-kw">new</span> <span class="t-fn">CustomEvent</span>(<span class="t-str">'fakelookup'</span>, {
-    bubbles: <span class="t-kw">true</span>,
-    detail: { label: <span class="t-str">`Found: ${q}`</span> }
-  }));
-}</pre>
-    </div>
-  </div>
-  </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a9" popovertarget="hw5">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a10" popovertarget="df5">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw5" style="position-anchor:--a9" popover>
-      <ol>
-        <li><span class="rn">1</span><span>You pass data down via <code class="inline">props / attributes</code>.</span></li>
-        <li><span class="rn">2</span><span>Async JS does the work.</span></li>
-        <li><span class="rn">3</span><span>It dispatches a <code class="inline">CustomEvent</code> with <code class="inline">detail</code> back up.</span></li>
-      </ol>
-      <div class="ok">✔ Datastar listens and updates signals.</div>
-    </div>
-    <div class="infopop" id="df5" style="position-anchor:--a10" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Datastar (Signals)</div><div class="farrow"></div>
-        <div class="fnode fn-gray">data-bind / data-on:*</div><div class="farrow"></div>
-        <div class="fsplit"><div class="fnode fn-yellow">Async JS helper</div><div class="fnode fn-orange">CustomEvent (detail)</div></div><div class="farrow"></div>
-        <div class="fnode fn-purple">DOM updates</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><button class="btn secondary" data-goto="3">← Back</button><button class="btn next" data-goto="5">Next →</button></div>
-</section>
-
-<!-- 6: wc -->
-<section class="step" data-title="Web components" data-sub="props down, events up">
-  <div class="step-grid">
-  <div>
-  <h2>6. Encapsulate complexity: web components</h2>
-  <p class="lead">Stateful/complex UI (pickers, editors, charts) → native web component. Datastar coordinates via <strong>signals as props down</strong> (<code class="inline">data-attr:</code>) and <strong>events up</strong> (<code class="inline">data-on:</code>). Component knows nothing about Datastar.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals as props</span> (<code class="inline">data-attr:</code>) → <span class="pe">events up</span> (<code class="inline">data-on:</code> → signal). Component is framework-free.</div></div>
-  <div class="grid2">
-    <div class="card"><h3>Try it — &lt;color-picker&gt;</h3>
-      <div class="demo" data-signals:s7_color="'#00a4cc'">
-        <color-picker data-attr:value="$s7_color" data-on:color-input="$s7_color = evt.detail.value"></color-picker>
-        <p>signal: <code class="inline" data-text="$s7_color"></code> <span data-style:background-color="$s7_color" style="display:inline-block;width:18px;height:18px;border-radius:99px;border:1px solid #999;vertical-align:middle"></span></p>
-        <button class="btn secondary" data-on:click="$s7_color = '#e11d48'">Set red from Datastar (prop down)</button>
-      </div>
-    </div>
-    <div class="card"><h3>Code <button class="copy" data-copy="#code6">⧉ Copy</button></h3>
-<pre id="code6"><span class="t-cm">&lt;!-- props down via data-attr, events up via data-on --&gt;</span>
-<span class="t-tag">&lt;color-picker</span>
-  <span class="t-attr">data-attr:value</span>=<span class="t-str">"$s7_color"</span> <span class="live-chip" title="live $s7_color">$s7_color=<b data-text="$s7_color ?? '…'"></b></span>
-  <span class="t-attr">data-on:color-input</span>=<span class="t-str">"$s7_color = evt.detail.value"</span>
-<span class="t-tag">&gt;&lt;/color-picker&gt;</span>
-
-<span class="t-kw">class</span> <span class="t-fn">ColorPicker</span> <span class="t-kw">extends</span> <span class="t-fn">HTMLElement</span> {
-  <span class="t-kw">static</span> observedAttributes = [<span class="t-str">'value'</span>];
-  <span class="t-fn">attributeChangedCallback</span>(n,o,v){ <span class="t-cm">/* render */</span> }
-  <span class="t-fn">#emit</span>(v){ <span class="t-kw">this</span>.<span class="t-fn">dispatchEvent</span>(<span class="t-kw">new</span> <span class="t-fn">CustomEvent</span>(<span class="t-str">'color-input'</span>,
-    {bubbles:<span class="t-kw">true</span>, composed:<span class="t-kw">true</span>, detail:{value:v}})); }
-}</pre>
-    </div>
-  </div>
-  </div>
-  <aside class="rail">
-    <div class="inforow">
-      <button class="infolabel" style="anchor-name:--a11" popovertarget="hw6">☰ How it works</button>
-      <button class="infolabel" style="anchor-name:--a12" popovertarget="df6">◈ Data flow</button>
-    </div>
-    <div class="infopop" id="hw6" style="position-anchor:--a11" popover>
-      <ol>
-        <li><span class="rn">1</span><span>Signal flows down as a plain <code class="inline">value</code> attribute.</span></li>
-        <li><span class="rn">2</span><span>Component renders internally (shadow DOM).</span></li>
-        <li><span class="rn">3</span><span>It emits <code class="inline">color-input</code>; Datastar maps <code class="inline">detail → signal</code>.</span></li>
-      </ol>
-      <div class="ok">✔ Component stays Datastar-agnostic.</div>
-    </div>
-    <div class="infopop" id="df6" style="position-anchor:--a12" popover>
-      <div class="flow">
-        <div class="fnode fn-green">Signal</div><div class="farrow"></div>
-        <div class="fnode fn-gray">attr prop (value)</div><div class="farrow"></div>
-        <div class="fnode fn-yellow">&lt;color-picker&gt;</div><div class="farrow"></div>
-        <div class="fnode fn-orange">color-input event</div><div class="farrow"></div>
-        <div class="fnode fn-purple">Signal + DOM</div>
-      </div>
-    </div>
-    <div class="card"><h3>▤ Quick links</h3>
-      <div class="qlinks"><a href="https://data-star.dev/docs" target="_blank" rel="noopener">Docs ↗</a><a href="https://data-star.dev/examples/active_search" target="_blank" rel="noopener">Examples ↗</a><a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">Repo ↗</a></div>
-    </div>
-  </aside>
-  </div>
-  <div class="pager"><button class="btn secondary" data-goto="4">← Back</button><span></span></div>
-</section>
-
-<div class="card" id="inspector">
-  <h3>Signal inspector (live) <button class="copy" data-copy="#inspectorPre">⧉ Copy</button></h3>
-  <pre id="inspectorPre" data-json-signals="{include: /^s\d_/}"></pre>
-  <footer class="hint">Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim — view source for <code class="inline">fakeBackend</code>.</footer>
-</div>
-
 </main>
 </div>
 
+<script src="./vendor/js-beautify/beautify-html.js"></script>
+<script src="./vendor/codemirror/lib/codemirror.js"></script>
+<script src="./vendor/codemirror/mode/xml/xml.js"></script>
+<script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="./vendor/codemirror/mode/css/css.js"></script>
+<script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
 <script>
-// ---------- tiny tour router ----------
-const steps = [...document.querySelectorAll('section.step')];
+// ================= steps: explainer | editable demo =================
+const STEPS = [
+{ title: "Actions & patching", sub: "backend drives UI + indicator",
+  explainer: `<h2>1. Start here: backend drives the UI</h2>
+  <p class="lead">Default to the backend as source of truth. A click fires <code class="inline">@get/@post</code>, the backend returns SSE that <strong>patches elements</strong>. No frontend state needed.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">action</span> → <span class="pe">SSE patches</span> (elements). One request → 0..n events, morphed into the DOM.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Click fires <code class="inline">@post</code> / <code class="inline">@get</code> on the button.</span></li>
+    <li><span class="rn">2</span><span><code class="inline">data-indicator</code> must sit on the same element as the action.</span></li>
+    <li><span class="rn">3</span><span>Backend morphs the patched elements in place.</span></li>
+  </ul>`,
+  code: `<div class="demo">
+  <button class="btn" data-on:click="@post('/api/inc')" data-indicator:s1_loading>Increment (server)</button>
+  <button class="btn secondary" data-on:click="@post('/api/reset')" data-indicator:s1_loading>Reset</button>
+  <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
+  <span data-show="$s1_loading" class="delayed" style="display:none"> ⏳ loading…</span>
+  <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
+  <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
+</div>` },
+{ title: "Signals & forms", sub: "reach for reactivity",
+  explainer: `<h2>2. Reach for signals: reactivity &amp; forms</h2>
+  <p class="lead">When the UI must react <em>without</em> a round-trip — typing, toggles, conditional buttons — add signals (<code class="inline">$name</code>).</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">data-bind</span> (input ↔ signal) → <span class="pe">data-text / show / attr</span> (display).</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span><code class="inline">data-bind</code> keeps input and signal in sync.</span></li>
+    <li><span class="rn">2</span><span>Any expression reading the signal re-runs on change.</span></li>
+    <li><span class="rn">3</span><span>Try: uncheck “I agree” — the button dims via <code class="inline">data-attr:disabled</code>.</span></li>
+  </ul>`,
+  code: `<div class="demo" data-signals:s1_name="''" data-signals:s2_qty="1" data-signals:s2_agree="false" data-signals:s2_placed="false">
+  <input type="text" placeholder="type your name" data-bind:s1_name />
+  <p>Hello, <strong data-text="$s1_name || 'stranger'"></strong>!</p>
+  <hr/>
+  <label>Qty <input type="number" min="0" max="9" data-bind:s2_qty /></label>
+  <label style="display:block;margin:8px 0"><input type="checkbox" data-bind:s2_agree /> I agree</label>
+  <button class="btn" data-attr:disabled="!$s2_agree"
+    data-on:click="$s2_placed = true"
+    data-show="$s2_qty > 0" style="display:none">Checkout × <span data-text="$s2_qty"></span></button>
+  <p class="sig" data-show="$s2_qty == 0">qty is 0 — button hides via <code>data-show</code>.</p>
+  <p data-show="$s2_placed" style="display:none">✅ Order placed: <strong data-text="$s2_qty"></strong> item(s) for <strong data-text="$s1_name || 'stranger'"></strong>.
+    <button class="btn secondary" data-on:click="$s2_placed = false; $s2_qty = 1">Start over</button></p>
+</div>` },
+{ title: "Signals + backend", sub: "active search, debounced",
+  explainer: `<h2>3. Combine: signals sent to backend</h2>
+  <p class="lead">All non-<code class="inline">_</code> signals ship with every <code class="inline">@get/@post</code> as <code class="inline">?datastar={…}</code>. Classic example: debounced active search.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signal</span> (typed) → <span class="pe">debounced @get</span> → backend patches elements <em>and</em> signals.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Typing updates the signal; the request debounces 250ms.</span></li>
+    <li><span class="rn">2</span><span>Try: “ada” — the table morphs, the count patches.</span></li>
+    <li><span class="rn">3</span><span>Clear the box — full table returns.</span></li>
+  </ul>`,
+  code: `<div class="demo" data-signals:s5_search="''" data-signals:s5_count="6">
+  <input type="text" placeholder="Search contacts…" data-bind:s5_search
+    data-on:input__debounce.250ms="@get('/api/search')" />
+  <div style="font-size:13px;color:var(--muted)">sent: <code class="inline">?datastar={"s5_search":"…"}</code></div>
+  <div id="s5_results"><table class="results"><tr><th>First</th><th>Last</th></tr><tr><td>Norwood</td><td>Hills</td></tr><tr><td>Jessika</td><td>Buckridge</td></tr><tr><td>Lawrence</td><td>Herzog</td></tr><tr><td>Peyton</td><td>Rippin</td></tr><tr><td>Justina</td><td>Farrell</td></tr><tr><td>Kaleb</td><td>Beier</td></tr></table></div>
+  <p class="sig">matches: <span data-text="$s5_count ?? '…'"></span></p>
+</div>` },
+{ title: "Break out to JS", sub: "plain functions, props in",
+  explainer: `<h2>4. When expressions get big → plain JS</h2>
+  <p class="lead">Datastar expressions are JS-like, but for reuse/tests/multi-line logic extract to <code class="inline">window.App</code>. Pass signals as arguments, use the return value.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">props in</span> (signal args) → <span class="pe">plain function</span> → return value out. Sync only.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Sync helpers return a value — testable, reusable.</span></li>
+    <li><span class="rn">2</span><span>Try: edit the title, watch slug / words / shouty.</span></li>
+    <li><span class="rn">3</span><span>Async can't be awaited — next step.</span></li>
+  </ul>`,
+  code: `<div class="demo" data-signals:s3_title="'Hello World!'" data-signals:s3_slug="'hello-world'">
+  <input type="text" data-bind:s3_title data-on:input="$s3_slug = App.slugify($s3_title)" />
+  <p>slug: <code class="inline" data-text="$s3_slug"></code></p>
+  <p>words: <strong data-text="App.wordCount($s3_title)"></strong> · shouty: <span data-text="App.shout($s3_title)"></span></p>
+</div>` },
+{ title: "Async JS → events up", sub: "CustomEvent pattern",
+  explainer: `<h2>5. Async JS: events up</h2>
+  <p class="lead">Datastar won't <code class="inline">await</code> async code. Helper takes <code class="inline">(el, data)</code>, works, then <code class="inline">el.dispatchEvent(new CustomEvent(...))</code>. Datastar listens with <code class="inline">data-on:myevent</code>.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">props down</span> (args) → <span class="pe">event up</span> (<code class="inline">detail</code>). Same shape as web components.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Pass data down via <code class="inline">props / attributes</code>.</span></li>
+    <li><span class="rn">2</span><span>Async JS does the work.</span></li>
+    <li><span class="rn">3</span><span>It dispatches a <code class="inline">CustomEvent</code> with <code class="inline">detail</code> back up.</span></li>
+  </ul>`,
+  code: `<div class="demo" data-signals:s4_result="'…'" data-signals:s4_q="'datastar'">
+  <input type="text" data-bind:s4_q data-on:input="App.fakeLookup(el, $s4_q)" />
+  <div data-on:fakelookup__window="$s4_result = evt.detail.label"></div>
+  <p>result: <strong data-text="$s4_result"></strong></p>
+</div>` },
+{ title: "Web components", sub: "props down, events up",
+  explainer: `<h2>6. Encapsulate complexity: web components</h2>
+  <p class="lead">Stateful/complex UI (pickers, editors, charts) → native web component. <strong>Signals as props down</strong> (<code class="inline">data-attr:</code>), <strong>events up</strong> (<code class="inline">data-on:</code>). The component knows nothing about Datastar.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals as props</span> → <span class="pe">events up</span> → signal. Component is framework-free.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Signal flows down as a plain <code class="inline">value</code> attribute.</span></li>
+    <li><span class="rn">2</span><span>Drag a slider — <code class="inline">color-input</code> maps <code class="inline">detail → signal</code>.</span></li>
+    <li><span class="rn">3</span><span>“Set red” proves props-down works too.</span></li>
+  </ul>`,
+  code: `<div class="demo" data-signals:s7_color="'#00a4cc'">
+  <color-picker data-attr:value="$s7_color" data-on:color-input="$s7_color = evt.detail.value"></color-picker>
+  <p>signal: <code class="inline" data-text="$s7_color"></code> <span data-style:background-color="$s7_color" style="display:inline-block;width:18px;height:18px;border-radius:99px;border:1px solid #999;vertical-align:middle"></span></p>
+  <button class="btn secondary" data-on:click="$s7_color = '#e11d48'">Set red from Datastar (prop down)</button>
+</div>` },
+];
+
+// ================= tour shell =================
 const nav = document.getElementById('nav');
 const pill = document.getElementById('stepPill');
+const left = document.getElementById('stepLeft');
+const preview = document.getElementById('preview');
+const inspectorPre = document.getElementById('inspectorPre');
 let cur = 0;
-const badges = [];
-steps.forEach((s,i)=>{
+
+const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+  mode: 'htmlmixed', theme: 'gruvbox-dark', lineNumbers: true, viewportMargin: Infinity,
+});
+
+STEPS.forEach((s,i)=>{
   const b = document.createElement('button');
-  b.innerHTML = `<span class="n">${i+1}</span><span><strong>${i+1}. ${s.dataset.title}</strong><small>${s.dataset.sub||''}</small></span>`;
+  b.innerHTML = `<span class="n">${i+1}</span><span><strong>${i+1}. ${s.title}</strong><small>${s.sub}</small></span>`;
   b.onclick = ()=>go(i);
   nav.appendChild(b);
-  badges.push(b.querySelector('.n'));
 });
-// sidebar footer card
 const built = document.createElement('div');
 built.className = 'built';
 built.innerHTML = `★ Built with Datastar<a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">View on GitHub ↗</a>`;
 nav.appendChild(built);
+
+function renderPreview(){
+  preview.innerHTML = editor.getValue();
+  placeHints();
+}
 function go(i){
-  cur = Math.max(0, Math.min(steps.length-1, i));
-  steps.forEach((s,k)=>s.classList.toggle('active', k===cur));
+  cur = Math.max(0, Math.min(STEPS.length-1, i));
+  document.getElementById('backBtn').disabled = cur===0;
+  document.getElementById('nextBtn').textContent = cur===STEPS.length-1 ? 'Done ✓' : 'Next →';
+  left.innerHTML = STEPS[cur].explainer;
+  editor.setValue(STEPS[cur].code);
   [...nav.querySelectorAll('button')].forEach((b,k)=>{ b.classList.toggle('active', k===cur); b.classList.toggle('done', k<cur); });
-  badges.forEach((n,k)=>{ n.textContent = k<cur ? '✓' : (k+1); });
-  pill.textContent = `Step ${cur+1} of ${steps.length}`;
-  location.hash = 'step-'+(cur+1);
+  [...nav.querySelectorAll('.n')].forEach((n,k)=>{ n.textContent = k<cur ? '✓' : (k+1); });
+  pill.textContent = `Step ${cur+1} of ${STEPS.length}`;
+  location.hash = 'tour-'+(cur+1);
+  renderPreview();
   window.scrollTo({top:0});
 }
-document.addEventListener('click', e=>{
-  const t = e.target.closest('[data-goto]');
-  if(t) go(parseInt(t.dataset.goto,10));
-  const c = e.target.closest('[data-copy]');
-  if(c){
-    const el = document.querySelector(c.getAttribute('data-copy'));
-    if(el && navigator.clipboard) navigator.clipboard.writeText(el.innerText).then(()=>{
-      const o = c.textContent; c.textContent = 'Copied';
-      setTimeout(()=>c.textContent=o, 1200);
-    });
-  }
-});
+document.getElementById('backBtn').onclick = ()=>go(cur-1);
+document.getElementById('nextBtn').onclick = ()=>go(cur+1);
+document.getElementById('resetBtn').onclick = ()=>{ editor.setValue(STEPS[cur].code); renderPreview(); };
+document.getElementById('formatBtn').onclick = ()=>{
+  try{
+    editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120}));
+  }catch{ /* formatter unavailable — leave code as-is */ }
+  renderPreview();
+};
+let deb = null;
+editor.on('change', ()=>{ clearTimeout(deb); deb = setTimeout(renderPreview, 500); });
+document.getElementById('menuBtn').onclick = ()=>{
+  document.body.classList.toggle('navhidden');
+  try{ localStorage.setItem('tour-nav', document.body.classList.contains('navhidden')?'1':'0'); }catch{}
+  setTimeout(()=>editor.refresh(), 50);
+};
+try{ if(localStorage.getItem('tour-nav')==='1') document.body.classList.add('navhidden'); }catch{}
 document.addEventListener('keydown', e=>{
-  if(e.target.matches('input,textarea')) return;
+  if(e.target.matches('input,textarea') || e.target.closest('.CodeMirror')) return;
   if(e.key==='ArrowRight') go(cur+1);
   if(e.key==='ArrowLeft') go(cur-1);
 });
-// hover opens info popovers (click toggles natively via popovertarget)
-document.querySelectorAll('.infolabel').forEach(b=>{
-  const p = document.getElementById(b.getAttribute('popovertarget'));
-  if(!p || !p.showPopover) return;
-  b.addEventListener('mouseenter', ()=>{ try{ p.showPopover(); }catch{} });
-  b.addEventListener('mouseleave', ()=>{ setTimeout(()=>{ if(!p.matches(':hover')) p.hidePopover(); }, 150); });
-  p.addEventListener('mouseleave', ()=>p.hidePopover());
-});
-go(Math.max(0,(parseInt((location.hash||'').replace('#step-',''),10)||1)-1));
 
-// ---------- App helpers ----------
+// ================= inlay-hint signal chips =================
+// Bookmark widgets after each $signal token; values polled from the inspector JSON.
+let hints = [];
+function readSignals(){
+  try{ return JSON.parse(inspectorPre.textContent); }catch{ return {}; }
+}
+function fmt(v){
+  if(v === undefined) return '…';
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+function placeHints(){
+  editor.getAllMarks().forEach(m=>m.clear());
+  hints = [];
+  const re = /\$s\d_[A-Za-z0-9_]+/g;
+  editor.eachLine(line=>{
+    const text = line.text;
+    let m;
+    re.lastIndex = 0;
+    while((m = re.exec(text))){
+      const node = document.createElement('span');
+      node.className = 'cm-hint';
+      node.textContent = '= …';
+      const lineno = editor.getLineNumber(line);
+      const mark = editor.setBookmark({line:lineno, ch:m.index+m[0].length}, {widget:node});
+      hints.push({mark, signal:m[0].slice(1), node});
+    }
+  });
+  refreshHints();
+}
+function refreshHints(){
+  const sigs = readSignals();
+  hints.forEach(h=>{ h.node.textContent = '= ' + fmt(sigs[h.signal]); });
+}
+// reactive: inspector <pre> is rewritten on every signal change —
+// update hints immediately instead of polling.
+new MutationObserver(refreshHints).observe(inspectorPre, {childList:true, characterData:true, subtree:true});
+setInterval(refreshHints, 2000); // fallback
+
+go(Math.max(0,(parseInt((location.hash||'').replace('#tour-',''),10)||1)-1));
+document.addEventListener('datastar-ready', ()=>renderPreview());
+
+// ================= App helpers (same as index) =================
 window.App = {
   slugify(s){ return String(s??'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); },
   wordCount(s){ const t = String(s??'').trim(); return t ? t.split(/\s+/).length : 0; },
@@ -568,7 +345,7 @@ window.App = {
   }
 };
 
-// ---------- fetch shim faking a Datastar SSE backend ----------
+// ================= fetch shim (same as index) =================
 const CONTACTS = [["Norwood","Hills"],["Jessika","Buckridge"],["Lawrence","Herzog"],["Peyton","Rippin"],["Justina","Farrell"],["Kaleb","Beier"],["Jeffrey","Luettgen"],["Melisa","Runte"],["Rosetta","Kuhic"],["Kadin","White"],["Ada","Lovelace"],["Grace","Hopper"]];
 let serverCount = 0;
 const realFetch = window.fetch.bind(window);
@@ -604,7 +381,6 @@ async function fakeBackend(urlStr, bodyText){
   if(path==='/api/slow'){ return sseResp(sse(`event: datastar-patch-elements\ndata: selector #s6_out\ndata: mode inner\ndata: elements <strong>Done at ${new Date().toLocaleTimeString()} — patched by backend.</strong>`), 900); }
   return null;
 }
-// Intercepts both fetch(string) and fetch(Request) forms — Datastar may use either.
 window.fetch = async function(input, init){
   let urlStr = '';
   if(typeof input === 'string') urlStr = input;
@@ -626,7 +402,7 @@ window.fetch = async function(input, init){
   return realFetch(input, init);
 };
 
-// ---------- web component ----------
+// ================= web component (same as index) =================
 class ColorPicker extends HTMLElement {
   static get observedAttributes(){ return ['value']; }
   constructor(){
