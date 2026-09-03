@@ -59,10 +59,10 @@ const STEPS = [
   pub: "cqrs1-pub", subscribe: "cqrs1-sub",
   explainer: `<h2>1. Shared counter, no server</h2>
   <p class="lead">Clicks are <strong>commands</strong> (deltas) broadcast to every window. Each window applies the same deltas to a shared signal — commutative, so all windows converge.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">handler</span> (store + emit) → <span class="pe">sub</span> (read store → patch). Subs never write.</div></div>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">commands</span> (Store.commit) → store → <span class="pe">sub</span> reads (Store.get). The tabs never touch the bus.</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Open this page in a second window. Click +1 in either.</span></li>
-    <li><span class="rn">2</span><span>Local and remote commands share one writer; every patch reads the store.</span></li>
+    <li><span class="rn">2</span><span>Commands are the only writers; the patch reads the store — all converge.</span></li>
     <li><span class="rn">3</span><span><code class="inline">handler.js</code> publishes, <code class="inline">sub.js</code> subscribes — break either.</span></li>
   </ul>`,
   code: `<div class="demo"
@@ -71,7 +71,7 @@ const STEPS = [
   <p style="font-size:28px">shared: <strong data-text="$s9_count"></strong></p>
   <p class="sig">last write by <span data-text="$s9_by"></span></p>
   <button class="btn"
-    data-on:click="DS.localInc(1)">+1 (broadcast)</button>
+    data-on:click="Commands.inc(1)">+1 (broadcast)</button>
 </div>`
 },
 { title: "Shared vs tab-local", sub: "spinner for all, dialog for one",
@@ -163,7 +163,6 @@ window.R = (()=>{
   const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
   const R = {
     peers, board: {}, boardVer: 0, colorFor,
-    store: {count: 0}, // step-1 replica: events mutate the store, views patch FROM it
     room(){ const el = document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; },
     me(){ const el = document.getElementById('s9_name'); return (el && el.value) || 'anon'; },
     seen(id, p){ peers.set(id, {...p, ts:Date.now()}); R.renderRoster(); },
@@ -216,9 +215,33 @@ window.R = (()=>{
 DS.hooks = {};
 document.getElementById('peerId').textContent = DS.bus.id;
 
-// command router (infra, one line): incoming bus commands go to the
-// handler tab's applier — never straight into signals or the store.
-DS.bus.on('inc', m => DS.applyRemote && DS.applyRemote(m), 'cmd-router');
+// The Store: stands in for the shared backend (squint: Postgres + pubsub).
+// One mutation point; every mutation notifies subscribers (CustomEvent).
+// Local commands commit (mutate + notify + broadcast); remote commands
+// merge into this window's replica (mutate + notify, never rebroadcast).
+window.Store = {
+  id: DS.bus.id,
+  state: {count: 0},
+  get(){ return this.state; },
+  mutate(cmd){
+    if(cmd.type === 'inc') this.state.count += cmd.delta;
+  },
+  notify(cmd){
+    DS.dispatch('store-changed', {by: cmd.by});
+  },
+  commit(cmd){
+    this.mutate(cmd);
+    this.notify(cmd);
+    DS.bus.send({kind: cmd.type, delta: cmd.delta, by: cmd.by});
+  },
+  merge(cmd){
+    this.mutate(cmd);
+    this.notify(cmd);
+  },
+};
+window.Commands = {};
+// sync layer (infra, one line): incoming bus commands merge into the replica.
+DS.bus.on('inc', m => Store.merge(m), 'store');
 
 // global drivers: stable interval + mousemove call step-owned hooks
 setInterval(()=>{ if(DS.hooks.beat) DS.hooks.beat(); }, 2000);
@@ -239,8 +262,7 @@ botBtn.onclick = ()=>{
   botBtn.textContent = 'Simulate peer: on'; botBtn.classList.add('on');
   let bx = 0.2, by = 0.3;
   botTimer = setInterval(()=>{
-    DS.applyInc ? DS.applyInc(1) : (R.store.count += 1);
-    DS.dispatch('remote-count', {from:'bot 🤖'});
+    Store.commit({type:'inc', delta:1, by:'bot 🤖'});
     window.R.seen('bot', {name:'bot 🤖', room:window.R.room()});
     const stage = document.getElementById('s9_stage');
     if(stage){
@@ -254,29 +276,16 @@ botBtn.onclick = ()=>{
 </script>
 
 <script type="text/plain" id="cqrs1-pub">
-// handler: update store -> emit bus event.
-// Local clicks use localInc; remote commands arrive via applyRemote
-// (wired by one page-infra line below: bus -> DS.applyRemote).
-// Either way there is exactly one store writer.
-DS.applyInc = (d) => {
-  R.store.count += d;
-};
-
-DS.localInc = (d = 1) => {
-  DS.applyInc(d);
-  emit('remote-count', { from: 'you' });
-  bus.send({ kind: 'inc', delta: d });
-};
-
-DS.applyRemote = (m) => {
-  DS.applyInc(m.delta);
-  emit('remote-count', { from: m.name || m.from });
+// commands — the only writers. They talk to the Store;
+// never to signals, never to the bus.
+Commands.inc = (d = 1) => {
+  Store.commit({ type: 'inc', delta: d, by: Store.id });
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// sub: handle bus event -> read store -> patch. That's the whole tab:
-// no subscriptions, no writes — just the read path.
-patch(`<div data-on:remote-count__window="$s9_count = R.store.count; $s9_by = evt.detail.from"></div>`);
+// read model: whenever the store changes, patch the view from it.
+// The patch IS the subscription — declarative, no writes here.
+patch(`<div data-on:store-changed__window="$s9_count = Store.get().count; $s9_by = evt.detail.by === Store.id ? evt.detail.by + ' (you)' : evt.detail.by"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
 // publish side: a ~3s shared job. Whoever clicks, every window spins.
