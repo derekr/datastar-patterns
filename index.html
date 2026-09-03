@@ -83,7 +83,7 @@
   pre { background:var(--code); color:var(--ink); padding:14px; border-radius:10px; overflow:auto; font-size:12.5px; line-height:1.65; border:1px solid var(--line); margin:0; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
   #inspector { margin-top:22px; }
   /* codemirror */
-  .CodeMirror { height:auto; min-height:180px; max-height:420px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:13px; font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .CodeMirror { height:300px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:13px; font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
   /* inlay-hint style live signal chips */
   .cm-hint { color:var(--faint); font-style:italic; font-size:.92em; background:rgba(184,187,38,.08); border-radius:5px; padding:0 5px; margin-left:3px; white-space:nowrap; }
 </style>
@@ -322,7 +322,7 @@ const inspectorPre = document.getElementById('inspectorPre');
 let cur = 0;
 
 const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
-  mode: 'htmlmixed', theme: 'gruvbox-dark', lineNumbers: true, viewportMargin: Infinity,
+  mode: 'htmlmixed', theme: 'gruvbox-dark', lineNumbers: true,
 });
 
 STEPS.forEach((s,i)=>{
