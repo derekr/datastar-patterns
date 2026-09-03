@@ -44,15 +44,118 @@
 </div>
 
 <script src="./vendor/js-beautify/beautify-html.js"></script>
+<script src="./vendor/js-beautify/beautify.js"></script>
 <script src="./vendor/codemirror/lib/codemirror.js"></script>
 <script src="./vendor/codemirror/mode/xml/xml.js"></script>
 <script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
 <script src="./vendor/codemirror/mode/css/css.js"></script>
 <script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
 <script src="./shared.js"></script>
+<script type="text/plain" id="h-ping">
+// GET /api/ping — one request, one event, connection closes.
+// The raw text below is literally what crosses the wire.
+handle('/api/ping', async (signals, H) => {
+  await H.wait(200);
+  return H.sse(
+    H.patchEl('#s8_out', `<strong>pong at ${new Date().toLocaleTimeString()}</strong>`)
+  );
+});
+</script>
+<script type="text/plain" id="h-contact">
+// POST /api/contact — live validation.
+// Same endpoint the submit step reuses: validate once, run everywhere.
+handle('/api/contact', async (signals, H) => {
+  const errs = [];
+  if (!String(signals.s8_email ?? '').includes('@')) errs.push('email must contain @');
+  if (String(signals.s8_msg ?? '').length < 10) errs.push('message must be ≥ 10 chars');
+  await H.wait(150);
+  const html = errs.length
+    ? `<ul class="errs">${errs.map(e => `<li>${H.esc(e)}</li>`).join('')}</ul>`
+    : `<span class="ok-line">✓ looks good</span>`;
+  return H.sse(H.patchEl('#s8_errors', html));
+});
+</script>
+<script type="text/plain" id="h-submit">
+// POST /api/contact-submit — staged submit, one patch per stage.
+// Terminal branches must close() the stream, or it stays open.
+handle('/api/contact-submit', async (signals, H) => {
+  const email = signals.s8_email ?? '', msg = signals.s8_msg ?? '';
+  return H.stream((write, { after, close }) => {
+    write(H.sse(H.patchEl('#s8_status', '⏳ Validating…')));
+    after(600, () => {
+      const errs = [];
+      if (!String(email).includes('@')) errs.push('email must contain @');
+      if (String(msg).length < 10) errs.push('message must be ≥ 10 chars');
+      if (errs.length) {
+        write(H.sse(
+          H.patchEl('#s8_errors', `<ul class="errs">${errs.map(e => `<li>${H.esc(e)}</li>`).join('')}</ul>`),
+          H.patchEl('#s8_status', '❌ Please fix the errors above')
+        ));
+        close();
+        return;
+      }
+      write(H.sse(
+        H.patchEl('#s8_errors', `<span class="ok-line">✓ looks good</span>`),
+        H.patchEl('#s8_status', '✓ Valid! Saving to database…')
+      ));
+      after(700, () => {
+        write(H.sse(H.patchEl('#s8_status', '⏳ Sending confirmation email…')));
+        after(800, () => {
+          if (String(email).includes('fail')) {
+            write(H.sse(
+              H.patchEl('#s8_status', '⚠️ Saved, but the email failed — we’ll retry it later'),
+              H.patchEl('#s8_saved', '<strong>Saved ✓</strong> (email pending)')
+            ));
+          } else {
+            write(H.sse(
+              H.patchEl('#s8_status', '✅ All done!'),
+              H.patchEl('#s8_saved', '<strong>Thank you! Your message has been sent.</strong>')
+            ));
+          }
+          close();
+        });
+      });
+    });
+  });
+});
+</script>
+<script type="text/plain" id="h-conn">
+// GET /api/ticks — open stream, one signal patch per beat.
+// POST /api/drop — kill it; the page goes honestly stale.
+// POST /api/reconnect — full snapshot, no replay.
+handle('/api/ticks', async (signals, H) => {
+  if (!H.srv.tickTimer) H.srv.tickTimer = setInterval(() => { H.srv.tick++; }, 1500);
+  return H.stream((write, { every, close }) => {
+    write(H.sse(H.patchSig({ s8_tick: H.srv.tick })));
+    every(1500, () => {
+      if (H.srv.down) { close(); return; }
+      write(H.sse(H.patchSig({ s8_tick: H.srv.tick })));
+    });
+  });
+});
+
+handle('/api/drop', async (signals, H) => {
+  H.srv.down = true;
+  await H.wait(200);
+  return H.sse(
+    H.patchSig({ s8_online: false }),
+    H.patchEl('#s8_conn', `<div class="banner off">● disconnected — showing last known state</div>`)
+  );
+});
+
+handle('/api/reconnect', async (signals, H) => {
+  H.srv.down = false;
+  await H.wait(300);
+  return H.sse(
+    H.patchSig({ s8_online: true, s8_tick: H.srv.tick }),
+    H.patchEl('#s8_conn', `<div class="banner okb">● live — full snapshot applied (tick ${H.srv.tick}), no replay needed</div>`)
+  );
+});
+</script>
 <script>
 const STEPS = [
 { title: "SSE is just a format", sub: "text/event-stream ≈ text/html",
+  hsrc: "h-ping",
   explainer: `<h2>1. SSE is just a response format</h2>
   <p class="lead">Not a realtime protocol — a text formatting of the response body (<code class="inline">event:</code> / <code class="inline">data:</code> / blank line), served as <code class="inline">text/event-stream</code>. One request → 0..n messages, then close. Any method works with <code class="inline">fetch</code> (only <code class="inline">EventSource</code> is GET-only).</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div>initial loads: <span class="pd">text/html</span> · everything else: <span class="pe">text/event-stream</span>. One mental model.</div></div>
@@ -60,6 +163,7 @@ const STEPS = [
     <li><span class="rn">1</span><span>Click Ping — one request, one event, connection closes.</span></li>
     <li><span class="rn">2</span><span>The raw block below is literally what crossed the wire.</span></li>
     <li><span class="rn">3</span><span>A blank line ends the message. That's the whole spec.</span></li>
+    <li><span class="rn">4</span><span>The <code class="inline">handler.js</code> tab is this endpoint — break it and watch.</span></li>
   </ul>`,
   code: `<div class="demo">
   <button class="btn"
@@ -74,6 +178,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
 </div>`
 },
 { title: "Live validation", sub: "one endpoint, validated once",
+  hsrc: "h-contact",
   explainer: `<h2>2. Live validation, one endpoint</h2>
   <p class="lead">Same <code class="inline">/api/contact</code> validates while typing <em>and</em> will validate on submit (next step) — validation logic written once, guaranteed identical.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">debounced @post</span> (signals) → <span class="pe">per-field error patches</span>. No validate-vs-submit drift.</div></div>
@@ -81,6 +186,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
     <li><span class="rn">1</span><span>Type a bad email — errors patch in, no submit needed.</span></li>
     <li><span class="rn">2</span><span>Fix it — the patch clears to “✓ looks good”.</span></li>
     <li><span class="rn">3</span><span>Message needs ≥ 10 chars. Try short, then long.</span></li>
+    <li><span class="rn">4</span><span>Rules live in <code class="inline">handler.js</code> — change one, feel it.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s8_email="'ada@'"
@@ -95,6 +201,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
 </div>`
 },
 { title: "Staged submit", sub: "progress as it happens",
+  hsrc: "h-submit",
   explainer: `<h2>3. Staged submit: progress as it happens</h2>
   <p class="lead">One submit streams <code class="inline">Validating… → Saving… → Email… → Done</code> — each stage patches the moment it lands. No all-or-nothing wait, no polling, no second endpoint.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">one @post</span> → <span class="pe">n patches over time</span> → close. Slow steps narrate themselves.</div></div>
@@ -102,6 +209,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
     <li><span class="rn">1</span><span>Fill a valid email + message, hit Submit.</span></li>
     <li><span class="rn">2</span><span>Watch the status narrate each stage.</span></li>
     <li><span class="rn">3</span><span>Invalid input ends the stream early at the error stage.</span></li>
+    <li><span class="rn">4</span><span>Stages are just sequential writes in <code class="inline">handler.js</code>.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s8_email="'ada@local'"
@@ -120,6 +228,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
 </div>`
 },
 { title: "Partial failure", sub: "each stage owns its outcome",
+  hsrc: "h-submit",
   explainer: `<h2>4. Partial failure without the try/catch maze</h2>
   <p class="lead">Saved ✓ but email ✗ — is that success? With SSE each stage reports its own outcome into template state. No leaking “success-ish” branches through the handler.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">per-stage patch</span> → <span class="pe">honest mixed states</span> (“saved, email pending”).</div></div>
@@ -127,6 +236,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
     <li><span class="rn">1</span><span>This form prefills a doomed email — hit Submit.</span></li>
     <li><span class="rn">2</span><span>Saved lands, then the email stage fails independently.</span></li>
     <li><span class="rn">3</span><span>Fix the email, resubmit — clean run to “All done”.</span></li>
+    <li><span class="rn">4</span><span>The <code class="inline">fail</code> branch is one <code class="inline">if</code> in <code class="inline">handler.js</code>.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s8_email="'ops@fail.test'"
@@ -145,6 +255,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
 </div>`
 },
 { title: "Drop & reconnect", sub: "snapshot, no replay",
+  hsrc: "h-conn",
   explainer: `<h2>5. Drop &amp; reconnect: snapshot, no replay</h2>
   <p class="lead">Kill the stream and the page goes stale — honestly, with a banner. Reconnect doesn't replay missed events: it fetches one <strong>full snapshot</strong> of current state.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">close → stale banner</span> → <span class="pe">reconnect = full state patch</span>. No last-event-id bookkeeping.</div></div>
@@ -152,6 +263,7 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
     <li><span class="rn">1</span><span>Resume the feed — ticks climb every 1.5s.</span></li>
     <li><span class="rn">2</span><span>Drop it — banner goes red, ticks freeze (server keeps counting).</span></li>
     <li><span class="rn">3</span><span>Reconnect — snapshot jumps straight to the current tick.</span></li>
+    <li><span class="rn">4</span><span>All three endpoints share one <code class="inline">handler.js</code> tab.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s8_tick="0"

@@ -77,6 +77,13 @@ pre { background:var(--code); color:var(--ink); padding:14px; border-radius:10px
 #inspector { margin-top:22px; }
 .CodeMirror { height:300px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:13px; font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 .cm-hint { color:var(--faint); font-style:italic; font-size:.92em; background:rgba(184,187,38,.08); border-radius:5px; padding:0 5px; margin-left:3px; white-space:nowrap; }
+.etabs { display:flex; gap:6px; margin-bottom:8px; }
+.etab { background:none; border:1px solid var(--line); color:var(--muted); border-radius:8px 8px 0 0; border-bottom:0; padding:5px 14px; font-size:12.5px; font-family:'JetBrains Mono', ui-monospace, monospace; cursor:pointer; }
+.etab:hover { color:var(--green); }
+.etab.active { color:var(--green); background:var(--code); border-color:var(--olive); font-weight:700; }
+.estatus { font-size:12px; font-family:ui-monospace, monospace; margin-top:8px; }
+.estatus.ok { color:var(--green); }
+.estatus.err { color:var(--red); }
 /* multiplayer session chrome */
 .sessbar { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px; margin-bottom:16px; }
 .sessbar code.inline { color:var(--aqua); }

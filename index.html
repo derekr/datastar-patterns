@@ -44,12 +44,33 @@
 </div>
 
 <script src="./vendor/js-beautify/beautify-html.js"></script>
+<script src="./vendor/js-beautify/beautify.js"></script>
 <script src="./vendor/codemirror/lib/codemirror.js"></script>
 <script src="./vendor/codemirror/mode/xml/xml.js"></script>
 <script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
 <script src="./vendor/codemirror/mode/css/css.js"></script>
 <script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
 <script src="./shared.js"></script>
+<script type="text/plain" id="h-search">
+// GET /api/search — signals arrive as ?datastar={...}
+// One request → two patches: elements + signals.
+handle('/api/search', async (signals, H) => {
+  const q = String(signals.s5_search ?? '').toLowerCase();
+  const rows = CONTACTS
+    .filter(([f, l]) => (f + ' ' + l).toLowerCase().includes(q))
+    .slice(0, 6);
+  await H.wait(120);
+  const html = rows.length
+    ? `<table class="results"><tr><th>First</th><th>Last</th></tr>` +
+      rows.map(([f, l]) => `<tr><td>${H.esc(f)}</td><td>${H.esc(l)}</td></tr>`).join('') +
+      `</table>`
+    : `<em>No matches for “${H.esc(signals.s5_search ?? '')}”.</em>`;
+  return H.sse(
+    H.patchEl('#s5_results', html),
+    H.patchSig({ s5_count: rows.length })
+  );
+});
+</script>
 <script>
 const STEPS = [
 { title: "Actions & patching", sub: "backend drives UI + indicator",
@@ -121,6 +142,7 @@ const STEPS = [
 </div>`
 },
 { title: "Signals + backend", sub: "active search, debounced",
+  hsrc: "h-search",
   explainer: `<h2>3. Combine: signals sent to backend</h2>
   <p class="lead">All non-<code class="inline">_</code> signals ship with every <code class="inline">@get/@post</code> as <code class="inline">?datastar={…}</code>. Classic example: debounced active search.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signal</span> (typed) → <span class="pe">debounced @get</span> → backend patches elements <em>and</em> signals.</div></div>
@@ -128,6 +150,7 @@ const STEPS = [
     <li><span class="rn">1</span><span>Typing updates the signal; the request debounces 250ms.</span></li>
     <li><span class="rn">2</span><span>Try: “ada” — the table morphs, the count patches.</span></li>
     <li><span class="rn">3</span><span>Clear the box — full table returns.</span></li>
+    <li><span class="rn">4</span><span>Flip to the <code class="inline">handler.js</code> tab — the endpoint above, editable.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s5_search="''"

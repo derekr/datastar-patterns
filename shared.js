@@ -1,5 +1,9 @@
 // Shared backend-fake + tour shell for the Datastar patterns pages.
 // Classic script (no modules): defines window.DS and window.TourShell.
+//
+// The fake backend is a REGISTRY: path -> async (signals, H) => SSE string | Response.
+// Steps with a `handler.js` tab show the registration source; evaluating it
+// registers the real handler. Displayed code == running code.
 window.DS = window.DS || {};
 (function(){
 "use strict";
@@ -20,16 +24,19 @@ window.App = DS.App;
 
 // ---------------- SSE primitives ----------------
 const CONTACTS = [["Norwood","Hills"],["Jessika","Buckridge"],["Lawrence","Herzog"],["Peyton","Rippin"],["Justina","Farrell"],["Kaleb","Beier"],["Jeffrey","Luettgen"],["Melisa","Runte"],["Rosetta","Kuhic"],["Kadin","White"],["Ada","Lovelace"],["Grace","Hopper"]];
-let serverCount = 0;
-let serverTick = 0, tickTimer = null, serverDown = false;
+DS.CONTACTS = CONTACTS;
+// mutable "server" state, shared by built-ins and handler-tab code via H.srv
+const SRV = {count:0, tick:0, down:false, tickTimer:null};
 
 function sse(...blocks){ return blocks.join('\n\n') + '\n\n'; }
 function sseResp(body, ms=0){
   return new Promise(res=>setTimeout(()=>res(new Response(body,{status:200,headers:{'Content-Type':'text/event-stream'}})), ms));
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+const patchEl = (selector, html)=>`event: datastar-patch-elements\ndata: selector ${selector}\ndata: mode inner\ndata: elements ${html}`;
+const patchSig = obj=>`event: datastar-patch-signals\ndata: signals ${JSON.stringify(obj)}`;
 
-// Open streams (ReadableStream) so re-renders / drops can close them.
+// Open streams (ReadableStream) so re-renders can close them.
 const openStreams = new Set();
 function closeStream(reg){
   if(reg.closed) return;
@@ -56,6 +63,38 @@ function streamResp(setup){
   return new Response(stream,{headers:{'Content-Type':'text/event-stream'}});
 }
 
+// Handler context: everything tab code may touch.
+const H = {
+  sse, esc, patchEl, patchSig,
+  wait: ms=>new Promise(r=>setTimeout(r,ms)),
+  stream: setup=>streamResp(setup),
+  srv: SRV,
+};
+DS.H = H;
+
+// ---------------- endpoint registry ----------------
+const registry = new Map();
+DS.handle = (path, fn)=>{ registry.set(path, fn); };
+// Built-ins with no editor tab (trivial one-patch endpoints).
+DS.handle('/api/inc', async ()=>sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">${++SRV.count} (from server)</div>`), 150));
+DS.handle('/api/reset', async ()=>sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">0 (from server)</div>`), 150));
+DS.handle('/api/slow', async ()=>sseResp(sse(patchEl('#s6_out', `<strong>Done at ${new Date().toLocaleTimeString()} — patched by backend.</strong>`)), 900));
+
+// Compile handler-tab source. Scope: handle(), H, CONTACTS. Returns {error?}.
+DS.compileHandler = code=>{
+  try{
+    const fn = new Function('handle','H','CONTACTS', code);
+    return {fn};
+  }catch(e){ return {error: String((e && e.message) || e)}; }
+};
+// Evaluate (runs the handle() registrations). Returns {error?}.
+DS.runHandlerCode = code=>{
+  const c = DS.compileHandler(code);
+  if(c.error) return c;
+  try{ c.fn(DS.handle, H, CONTACTS); return {}; }
+  catch(e){ return {error: String((e && e.message) || e)}; }
+};
+
 function readSignalsFrom(urlStr, bodyText){
   try{
     if(bodyText){ return JSON.parse(bodyText); }
@@ -65,107 +104,19 @@ function readSignalsFrom(urlStr, bodyText){
   }catch{ return {}; }
 }
 
-// ---------------- contact-form "server" (SSE section) ----------------
-function contactErrors(email, msg){
-  const errs = [];
-  if(!String(email||'').includes('@')) errs.push('email must contain @');
-  if(String(msg||'').length < 10) errs.push('message must be ≥ 10 chars (try typing “fail” in the email to fail later)');
-  return errs;
-}
-function errorsHtml(errs){
-  if(!errs.length) return `<span class="ok-line">✓ looks good</span>`;
-  return `<ul class="errs">${errs.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>`;
-}
-const patchEl = (selector, html)=>`event: datastar-patch-elements\ndata: selector ${selector}\ndata: mode inner\ndata: elements ${html}`;
-const patchSig = obj=>`event: datastar-patch-signals\ndata: signals ${JSON.stringify(obj)}`;
-
 async function fakeBackend(urlStr, bodyText){
   const path = new URL(urlStr, location.href).pathname;
+  if(!registry.has(path)) return null;
   const sig = readSignalsFrom(urlStr, bodyText);
-  if(path==='/api/search'){
-    const q = String(sig.s5_search ?? '').toLowerCase();
-    const rows = CONTACTS.filter(([f,l])=>(f+' '+l).toLowerCase().includes(q)).slice(0,6);
-    const html = rows.length
-      ? `<table class="results"><tr><th>First</th><th>Last</th></tr>${rows.map(([f,l])=>`<tr><td>${esc(f)}</td><td>${esc(l)}</td></tr>`).join('')}</table>`
-      : `<em>No matches for “${esc(sig.s5_search??'')}”.</em>`;
-    return sseResp(sse(
-      `event: datastar-patch-elements\ndata: selector #s5_results\ndata: mode inner\ndata: elements ${html}`,
-      `event: datastar-patch-signals\ndata: signals {s5_count: ${rows.length}}`
-    ), 120);
+  try{
+    const out = await registry.get(path)(sig, H);
+    if(typeof out === 'string')
+      return new Response(out,{status:200,headers:{'Content-Type':'text/event-stream'}});
+    return out;
+  }catch(e){
+    console.warn('[shim]', path, e);
+    return new Response(sse(patchSig({})),{status:200,headers:{'Content-Type':'text/event-stream'}});
   }
-  if(path==='/api/inc'){ serverCount++; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">${serverCount} (from server)</div>`), 150); }
-  if(path==='/api/reset'){ serverCount = 0; return sseResp(sse(`event: datastar-patch-elements\ndata: elements <div id="s5_counter">0 (from server)</div>`), 150); }
-  if(path==='/api/slow'){ return sseResp(sse(`event: datastar-patch-elements\ndata: selector #s6_out\ndata: mode inner\ndata: elements <strong>Done at ${new Date().toLocaleTimeString()} — patched by backend.</strong>`), 900); }
-
-  // ---- SSE section: one contact endpoint, validate + staged submit ----
-  if(path==='/api/contact'){
-    const email = sig.s8_email ?? '', msg = sig.s8_msg ?? '';
-    return sseResp(sse(patchEl('#s8_errors', errorsHtml(contactErrors(email,msg)))), 150);
-  }
-  if(path==='/api/contact-submit'){
-    const email = sig.s8_email ?? '', msg = sig.s8_msg ?? '';
-    return streamResp((write, {after})=>{
-      write(sse(patchEl('#s8_status', '⏳ Validating…')));
-      after(600, ()=>{
-        const errs = contactErrors(email,msg);
-        if(errs.length){
-          write(sse(patchEl('#s8_errors', errorsHtml(errs)),
-                     patchEl('#s8_status', '❌ Please fix the errors above')));
-          DS.closeStreams(); // end this stream (closes all open — one page, one stream at a time)
-          return;
-        }
-        write(sse(patchEl('#s8_errors', errorsHtml([])),
-                   patchEl('#s8_status', '✓ Valid! Saving to database…')));
-        after(700, ()=>{
-          write(sse(patchEl('#s8_status', '⏳ Sending confirmation email…')));
-          after(800, ()=>{
-            if(String(email).includes('fail')){
-              write(sse(
-                patchEl('#s8_status', '⚠️ Saved, but the email failed — we’ll retry it later'),
-                patchEl('#s8_saved', '<strong>Saved ✓</strong> (email pending)')));
-            }else{
-              write(sse(
-                patchEl('#s8_status', '✅ All done!'),
-                patchEl('#s8_saved', '<strong>Thank you! Your message has been sent.</strong>')));
-            }
-            DS.closeStreams();
-          });
-        });
-      });
-    });
-  }
-
-  // ---- SSE section: misc ----
-  if(path==='/api/ping'){
-    return sseResp(sse(patchEl('#s8_out', `<strong>pong at ${new Date().toLocaleTimeString()}</strong>`)), 200);
-  }
-
-  // ---- SSE section: ticks / drop / reconnect snapshot ----
-  if(path==='/api/ticks'){
-    if(!tickTimer) tickTimer = setInterval(()=>{ serverTick++; }, 1500);
-    return streamResp((write, {every, close})=>{
-      write(sse(patchSig({s8_tick: serverTick})));
-      every(1500, ()=>{
-        if(serverDown){ close(); return; }
-        write(sse(patchSig({s8_tick: serverTick})));
-      });
-    });
-  }
-  if(path==='/api/drop'){
-    serverDown = true;
-    return sseResp(sse(
-      patchSig({s8_online: false}),
-      patchEl('#s8_conn', `<div class="banner off">● disconnected — showing last known state</div>`)
-    ), 200);
-  }
-  if(path==='/api/reconnect'){
-    serverDown = false;
-    return sseResp(sse(
-      patchSig({s8_online: true, s8_tick: serverTick}),
-      patchEl('#s8_conn', `<div class="banner okb">● live — full snapshot applied (tick ${serverTick}), no replay needed</div>`)
-    ), 300);
-  }
-  return null;
 }
 
 // fetch shim: string | URL | Request, GET query or JSON body signals
@@ -283,6 +234,27 @@ window.TourShell = {
     const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
       mode: 'htmlmixed', theme: 'gruvbox-dark', lineNumbers: true,
     });
+    // tab bar + handler status, inserted around the editor (pages stay thin)
+    const tabsBar = document.createElement('div');
+    tabsBar.className = 'etabs';
+    editor.getWrapperElement().before(tabsBar);
+    const statusLine = document.createElement('div');
+    statusLine.className = 'estatus';
+    statusLine.style.display = 'none';
+    editor.getWrapperElement().after(statusLine);
+    const previewErr = document.createElement('div');
+    previewErr.className = 'banner off';
+    previewErr.style.display = 'none';
+    previewErr.style.marginBottom = '12px';
+    preview.before(previewErr);
+
+    // per-step file buffers; js default read from text/plain blocks (no escaping issues)
+    steps.forEach(s=>{
+      s._html = s.code;
+      s._js = s.hsrc ? (document.getElementById(s.hsrc)?.textContent ?? '').replace(/^\n+|\s+$/g,'') : null;
+      s._file = 'demo.html';
+      s._err = null;
+    });
 
     steps.forEach((s,i)=>{
       const b = document.createElement('button');
@@ -324,6 +296,58 @@ window.TourShell = {
     new MutationObserver(refreshHints).observe(inspectorPre, {childList:true, characterData:true, subtree:true});
     setInterval(refreshHints, 2000);
 
+    function renderTabs(){
+      const s = steps[cur];
+      tabsBar.innerHTML = '';
+      const mk = (name, active)=>{
+        const b = document.createElement('button');
+        b.className = 'etab' + (active ? ' active' : '');
+        b.textContent = name;
+        b.onclick = ()=>selectFile(name);
+        tabsBar.appendChild(b);
+      };
+      mk('demo.html', s._file === 'demo.html');
+      if(s._js !== null) mk('handler.js', s._file === 'handler.js');
+    }
+    function showStatus(){
+      const s = steps[cur];
+      if(s._js === null){ statusLine.style.display = 'none'; return; }
+      statusLine.style.display = 'block';
+      if(s._err){
+        statusLine.className = 'estatus err';
+        statusLine.textContent = '● handler error — ' + s._err;
+      }else{
+        statusLine.className = 'estatus ok';
+        statusLine.textContent = '● handler live';
+      }
+    }
+    function showPreviewErr(){
+      const s = steps[cur];
+      if(s._err){
+        previewErr.style.display = 'block';
+        previewErr.innerHTML = `⚠️ <strong>handler.js failed to compile</strong> — demo below runs the last-good version.<br><code class="inline">${DS.esc(s._err)}</code>`;
+      }else{
+        previewErr.style.display = 'none';
+        previewErr.innerHTML = '';
+      }
+    }
+    function selectFile(name){
+      const s = steps[cur];
+      s._file = name;
+      editor.setOption('mode', name === 'handler.js' ? 'javascript' : 'htmlmixed');
+      editor.setValue(name === 'handler.js' ? s._js : s._html);
+      renderTabs();
+      placeHints();
+    }
+    function applyHandler(){
+      const s = steps[cur];
+      if(s._js === null) return;
+      const r = DS.runHandlerCode(editor.getValue());
+      s._js = editor.getValue();
+      s._err = r.error || null;
+      showStatus();
+      showPreviewErr();
+    }
     function renderPreview(){
       DS.closeStreams();
       preview.innerHTML = editor.getValue();
@@ -331,10 +355,20 @@ window.TourShell = {
     }
     function go(i){
       cur = Math.max(0, Math.min(steps.length-1, i));
+      const s = steps[cur];
       document.getElementById('backBtn').disabled = cur===0;
       document.getElementById('nextBtn').textContent = cur===steps.length-1 ? 'Done ✓' : 'Next →';
-      left.innerHTML = steps[cur].explainer;
-      editor.setValue(steps[cur].code);
+      left.innerHTML = s.explainer;
+      // entering a step (re)applies its handler buffer
+      if(s._js !== null){
+        const r = DS.runHandlerCode(s._js);
+        s._err = r.error || null;
+      }
+      editor.setOption('mode', s._file === 'handler.js' ? 'javascript' : 'htmlmixed');
+      editor.setValue(s._file === 'handler.js' ? s._js : s._html);
+      renderTabs();
+      showStatus();
+      showPreviewErr();
       [...nav.querySelectorAll('button')].forEach((b,k)=>{ b.classList.toggle('active', k===cur); b.classList.toggle('done', k<cur); });
       [...nav.querySelectorAll('.n')].forEach((n,k)=>{ n.textContent = k<cur ? '✓' : (k+1); });
       pill.textContent = `Step ${cur+1} of ${steps.length}`;
@@ -344,17 +378,44 @@ window.TourShell = {
     }
     document.getElementById('backBtn').onclick = ()=>go(cur-1);
     document.getElementById('nextBtn').onclick = ()=>go(cur+1);
-    document.getElementById('resetBtn').onclick = ()=>{ editor.setValue(steps[cur].code); renderPreview(); };
+    document.getElementById('resetBtn').onclick = ()=>{
+      const s = steps[cur];
+      s._html = s.code;
+      if(s._js !== null){
+        s._js = (document.getElementById(s.hsrc)?.textContent ?? '').replace(/^\n+|\s+$/g,'');
+        const r = DS.runHandlerCode(s._js);
+        s._err = r.error || null;
+      }else s._err = null;
+      editor.setValue(s._file === 'handler.js' ? s._js : s._html);
+      showStatus();
+      showPreviewErr();
+      renderPreview();
+    };
     const fmtBtn = document.getElementById('formatBtn');
     if(fmtBtn) fmtBtn.onclick = ()=>{
       try{
-        if(typeof html_beautify === 'function')
+        if(steps[cur]._file === 'handler.js'){
+          if(typeof beautify === 'function') editor.setValue(beautify(editor.getValue(), {indent_size:2}));
+        }else if(typeof html_beautify === 'function'){
           editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120, wrap_attributes:'force'}));
+        }
       }catch{}
-      renderPreview();
+      if(steps[cur]._file === 'handler.js') applyHandler(); else renderPreview();
     };
     let deb = null;
-    editor.on('change', ()=>{ clearTimeout(deb); deb = setTimeout(renderPreview, 500); });
+    editor.on('change', ()=>{
+      clearTimeout(deb);
+      const s = steps[cur];
+      if(s._file === 'handler.js'){
+        deb = setTimeout(()=>{
+          s._js = editor.getValue();
+          applyHandler();
+        }, 500);
+      }else{
+        deb = setTimeout(()=>{ s._html = editor.getValue(); renderPreview(); }, 500);
+      }
+    });
+    // html edits must persist per step (js persists via s._js in applyHandler)
     const menuBtn = document.getElementById('menuBtn');
     if(menuBtn) menuBtn.onclick = ()=>{
       document.body.classList.toggle('navhidden');
@@ -370,7 +431,7 @@ window.TourShell = {
 
     go(Math.max(0,(parseInt((location.hash||'').replace('#'+hashPrefix,''),10)||1)-1));
     document.addEventListener('datastar-ready', ()=>renderPreview());
-    return {go, editor, renderPreview};
+    return {go, editor};
   }
 };
 
