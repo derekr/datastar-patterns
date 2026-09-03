@@ -140,13 +140,24 @@ const STEPS = [
     <li><span class="rn">3</span><span>Backend morphs the patched elements in place.</span></li>
   </ul>`,
   code: `<div class="demo">
-  <button class="btn" data-on:click="@post('/api/inc')" data-indicator:s1_loading>Increment (server)</button>
-  <button class="btn secondary" data-on:click="@post('/api/reset')" data-indicator:s1_loading>Reset</button>
-  <button class="btn secondary" data-on:click="@get('/api/slow')" data-indicator:s1_loading>Slow fetch (900ms)</button>
-  <span data-show="$s1_loading" class="delayed" style="display:none"> ⏳ loading…</span>
-  <div id="s5_counter" style="font-size:28px;margin-top:8px">…</div>
-  <div id="s6_out" style="margin-top:8px"><em>slow result lands here</em></div>
-</div>` },
+  <button class="btn"
+    data-on:click="@post('/api/inc')"
+    data-indicator:s1_loading>Increment (server)</button>
+  <button class="btn secondary"
+    data-on:click="@post('/api/reset')"
+    data-indicator:s1_loading>Reset</button>
+  <button class="btn secondary"
+    data-on:click="@get('/api/slow')"
+    data-indicator:s1_loading>Slow fetch (900ms)</button>
+  <span data-show="$s1_loading"
+    class="delayed"
+    style="display:none"> ⏳ loading…</span>
+  <div id="s5_counter"
+    style="font-size:28px;margin-top:8px">…</div>
+  <div id="s6_out"
+    style="margin-top:8px"><em>slow result lands here</em></div>
+</div>`
+},
 { title: "Signals & forms", sub: "reach for reactivity",
   explainer: `<h2>2. Reach for signals: reactivity &amp; forms</h2>
   <p class="lead">When the UI must react <em>without</em> a round-trip — typing, toggles, conditional buttons — add signals (<code class="inline">$name</code>).</p>
@@ -156,19 +167,37 @@ const STEPS = [
     <li><span class="rn">2</span><span>Any expression reading the signal re-runs on change.</span></li>
     <li><span class="rn">3</span><span>Try: uncheck “I agree” — the button dims via <code class="inline">data-attr:disabled</code>.</span></li>
   </ul>`,
-  code: `<div class="demo" data-signals:s1_name="''" data-signals:s2_qty="1" data-signals:s2_agree="false" data-signals:s2_placed="false">
-  <input type="text" placeholder="type your name" data-bind:s1_name />
+  code: `<div class="demo"
+  data-signals:s1_name="''"
+  data-signals:s2_qty="1"
+  data-signals:s2_agree="false"
+  data-signals:s2_placed="false">
+  <input type="text"
+    placeholder="type your name"
+    data-bind:s1_name />
   <p>Hello, <strong data-text="$s1_name || 'stranger'"></strong>!</p>
-  <hr/>
-  <label>Qty <input type="number" min="0" max="9" data-bind:s2_qty /></label>
-  <label style="display:block;margin:8px 0"><input type="checkbox" data-bind:s2_agree /> I agree</label>
-  <button class="btn" data-attr:disabled="!$s2_agree"
+  <hr />
+  <label>Qty <input type="number"
+      min="0"
+      max="9"
+      data-bind:s2_qty /></label>
+  <label style="display:block;margin:8px 0"><input type="checkbox"
+      data-bind:s2_agree /> I agree</label>
+  <button class="btn"
+    data-attr:disabled="!$s2_agree"
     data-on:click="$s2_placed = true"
-    data-show="$s2_qty > 0" style="display:none">Checkout × <span data-text="$s2_qty"></span></button>
-  <p class="sig" data-show="$s2_qty == 0">qty is 0 — button hides via <code>data-show</code>.</p>
-  <p data-show="$s2_placed" style="display:none">✅ Order placed: <strong data-text="$s2_qty"></strong> item(s) for <strong data-text="$s1_name || 'stranger'"></strong>.
-    <button class="btn secondary" data-on:click="$s2_placed = false; $s2_qty = 1">Start over</button></p>
-</div>` },
+    data-show="$s2_qty > 0"
+    style="display:none">Checkout × <span data-text="$s2_qty"></span></button>
+  <p class="sig"
+    data-show="$s2_qty == 0">qty is 0 — button hides via <code>data-show</code>.</p>
+  <p data-show="$s2_placed"
+    style="display:none">✅ Order placed: <strong data-text="$s2_qty"></strong> item(s) for <strong
+      data-text="$s1_name || 'stranger'"></strong>.
+    <button class="btn secondary"
+      data-on:click="$s2_placed = false; $s2_qty = 1">Start over</button>
+  </p>
+</div>`
+},
 { title: "Signals + backend", sub: "active search, debounced",
   explainer: `<h2>3. Combine: signals sent to backend</h2>
   <p class="lead">All non-<code class="inline">_</code> signals ship with every <code class="inline">@get/@post</code> as <code class="inline">?datastar={…}</code>. Classic example: debounced active search.</p>
@@ -178,13 +207,49 @@ const STEPS = [
     <li><span class="rn">2</span><span>Try: “ada” — the table morphs, the count patches.</span></li>
     <li><span class="rn">3</span><span>Clear the box — full table returns.</span></li>
   </ul>`,
-  code: `<div class="demo" data-signals:s5_search="''" data-signals:s5_count="6">
-  <input type="text" placeholder="Search contacts…" data-bind:s5_search
+  code: `<div class="demo"
+  data-signals:s5_search="''"
+  data-signals:s5_count="6">
+  <input type="text"
+    placeholder="Search contacts…"
+    data-bind:s5_search
     data-on:input__debounce.250ms="@get('/api/search')" />
   <div style="font-size:13px;color:var(--muted)">sent: <code class="inline">?datastar={"s5_search":"…"}</code></div>
-  <div id="s5_results"><table class="results"><tr><th>First</th><th>Last</th></tr><tr><td>Norwood</td><td>Hills</td></tr><tr><td>Jessika</td><td>Buckridge</td></tr><tr><td>Lawrence</td><td>Herzog</td></tr><tr><td>Peyton</td><td>Rippin</td></tr><tr><td>Justina</td><td>Farrell</td></tr><tr><td>Kaleb</td><td>Beier</td></tr></table></div>
+  <div id="s5_results">
+    <table class="results">
+      <tr>
+        <th>First</th>
+        <th>Last</th>
+      </tr>
+      <tr>
+        <td>Norwood</td>
+        <td>Hills</td>
+      </tr>
+      <tr>
+        <td>Jessika</td>
+        <td>Buckridge</td>
+      </tr>
+      <tr>
+        <td>Lawrence</td>
+        <td>Herzog</td>
+      </tr>
+      <tr>
+        <td>Peyton</td>
+        <td>Rippin</td>
+      </tr>
+      <tr>
+        <td>Justina</td>
+        <td>Farrell</td>
+      </tr>
+      <tr>
+        <td>Kaleb</td>
+        <td>Beier</td>
+      </tr>
+    </table>
+  </div>
   <p class="sig">matches: <span data-text="$s5_count ?? '…'"></span></p>
-</div>` },
+</div>`
+},
 { title: "Break out to JS", sub: "plain functions, props in",
   explainer: `<h2>4. When expressions get big → plain JS</h2>
   <p class="lead">Datastar expressions are JS-like, but for reuse/tests/multi-line logic extract to <code class="inline">window.App</code>. Pass signals as arguments, use the return value.</p>
@@ -194,11 +259,18 @@ const STEPS = [
     <li><span class="rn">2</span><span>Try: edit the title, watch slug / words / shouty.</span></li>
     <li><span class="rn">3</span><span>Async can't be awaited — next step.</span></li>
   </ul>`,
-  code: `<div class="demo" data-signals:s3_title="'Hello World!'" data-signals:s3_slug="'hello-world'">
-  <input type="text" data-bind:s3_title data-on:input="$s3_slug = App.slugify($s3_title)" />
-  <p>slug: <code class="inline" data-text="$s3_slug"></code></p>
-  <p>words: <strong data-text="App.wordCount($s3_title)"></strong> · shouty: <span data-text="App.shout($s3_title)"></span></p>
-</div>` },
+  code: `<div class="demo"
+  data-signals:s3_title="'Hello World!'"
+  data-signals:s3_slug="'hello-world'">
+  <input type="text"
+    data-bind:s3_title
+    data-on:input="$s3_slug = App.slugify($s3_title)" />
+  <p>slug: <code class="inline"
+      data-text="$s3_slug"></code></p>
+  <p>words: <strong data-text="App.wordCount($s3_title)"></strong> · shouty: <span
+      data-text="App.shout($s3_title)"></span></p>
+</div>`
+},
 { title: "Async JS → events up", sub: "CustomEvent pattern",
   explainer: `<h2>5. Async JS: events up</h2>
   <p class="lead">Datastar won't <code class="inline">await</code> async code. Helper takes <code class="inline">(el, data)</code>, works, then <code class="inline">el.dispatchEvent(new CustomEvent(...))</code>. Datastar listens with <code class="inline">data-on:myevent</code>.</p>
@@ -208,11 +280,16 @@ const STEPS = [
     <li><span class="rn">2</span><span>Async JS does the work.</span></li>
     <li><span class="rn">3</span><span>It dispatches a <code class="inline">CustomEvent</code> with <code class="inline">detail</code> back up.</span></li>
   </ul>`,
-  code: `<div class="demo" data-signals:s4_result="'…'" data-signals:s4_q="'datastar'">
-  <input type="text" data-bind:s4_q data-on:input="App.fakeLookup(el, $s4_q)" />
+  code: `<div class="demo"
+  data-signals:s4_result="'…'"
+  data-signals:s4_q="'datastar'">
+  <input type="text"
+    data-bind:s4_q
+    data-on:input="App.fakeLookup(el, $s4_q)" />
   <div data-on:fakelookup__window="$s4_result = evt.detail.label"></div>
   <p>result: <strong data-text="$s4_result"></strong></p>
-</div>` },
+</div>`
+},
 { title: "Web components", sub: "props down, events up",
   explainer: `<h2>6. Encapsulate complexity: web components</h2>
   <p class="lead">Stateful/complex UI (pickers, editors, charts) → native web component. <strong>Signals as props down</strong> (<code class="inline">data-attr:</code>), <strong>events up</strong> (<code class="inline">data-on:</code>). The component knows nothing about Datastar.</p>
@@ -222,11 +299,18 @@ const STEPS = [
     <li><span class="rn">2</span><span>Drag a slider — <code class="inline">color-input</code> maps <code class="inline">detail → signal</code>.</span></li>
     <li><span class="rn">3</span><span>“Set red” proves props-down works too.</span></li>
   </ul>`,
-  code: `<div class="demo" data-signals:s7_color="'#00a4cc'">
-  <color-picker data-attr:value="$s7_color" data-on:color-input="$s7_color = evt.detail.value"></color-picker>
-  <p>signal: <code class="inline" data-text="$s7_color"></code> <span data-style:background-color="$s7_color" style="display:inline-block;width:18px;height:18px;border-radius:99px;border:1px solid #999;vertical-align:middle"></span></p>
-  <button class="btn secondary" data-on:click="$s7_color = '#e11d48'">Set red from Datastar (prop down)</button>
-</div>` },
+  code: `<div class="demo"
+  data-signals:s7_color="'#00a4cc'">
+  <color-picker data-attr:value="$s7_color"
+    data-on:color-input="$s7_color = evt.detail.value"></color-picker>
+  <p>signal: <code class="inline"
+      data-text="$s7_color"></code> <span data-style:background-color="$s7_color"
+      style="display:inline-block;width:18px;height:18px;border-radius:99px;border:1px solid #999;vertical-align:middle"></span>
+  </p>
+  <button class="btn secondary"
+    data-on:click="$s7_color = '#e11d48'">Set red from Datastar (prop down)</button>
+</div>`
+},
 ];
 
 // ================= tour shell =================
@@ -274,7 +358,7 @@ document.getElementById('nextBtn').onclick = ()=>go(cur+1);
 document.getElementById('resetBtn').onclick = ()=>{ editor.setValue(STEPS[cur].code); renderPreview(); };
 document.getElementById('formatBtn').onclick = ()=>{
   try{
-    editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120}));
+    editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120, wrap_attributes:'force'}));
   }catch{ /* formatter unavailable — leave code as-is */ }
   renderPreview();
 };
