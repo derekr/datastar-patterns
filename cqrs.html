@@ -78,15 +78,16 @@ const STEPS = [
   pub: "cqrs2-pub", subscribe: "cqrs2-sub",
   explainer: `<h2>2. Ephemeral: shared vs tab-local</h2>
   <p class="lead">Two kinds of ephemeral state. The <strong>finish spinner is shared</strong> — whoever clicks, every window spins. The <strong>dialog is tab-local</strong> (<code class="inline">$_</code> never leaves the tab). Display name is a tab preference: stored nowhere, sent nowhere.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">shared ephemeral</span> (broadcast in-flight) vs <span class="pe">tab ephemeral</span> (<code class="inline">$_</code>, broadcast nothing).</div></div>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">shared</span> (spinner, broadcast) · <span class="pe">session</span> (toast, requester only) · tab-local (<code class="inline">$_</code> dialog, never sent).</div></div>
   <ul class="how">
-    <li><span class="rn">1</span><span>Click Finish in one window — all windows spin ~3s.</span></li>
+    <li><span class="rn">1</span><span>Click Finish here — all windows spin, but only you get the toast.</span></li>
     <li><span class="rn">2</span><span>Open the dialog — other windows never know.</span></li>
     <li><span class="rn">3</span><span>Publish lives in <code class="inline">handler.js</code>, subscribe in <code class="inline">sub.js</code>.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s9_job="false"
   data-signals:s9_jobby="'—'"
+  data-signals:s9_toast="''"
   data-signals:$_dlg="false"
   data-signals:s9_name="'anon'">
   <button class="btn"
@@ -94,6 +95,9 @@ const STEPS = [
   <span data-show="$s9_job"
     class="delayed"
     style="display:none"> ⏳ job running… (started by <span data-text="$s9_jobby"></span>)</span>
+  <div class="toast"
+    data-show="$s9_toast"
+    style="display:none">🔔 <span data-text="$s9_toast"></span></div>
   <hr />
   <button class="btn secondary"
     data-on:click="$_dlg = !$_dlg">Toggle dialog (this tab only)</button>
@@ -300,23 +304,28 @@ patch(`<div data-on:render-count__window="$s9_count = evt.detail.count; $s9_by =
 </script>
 <script type="text/plain" id="cqrs2-pub">
 // publish side: a ~3s shared job. Whoever clicks, every window spins.
+// Plus a session confirmation: ONLY this window gets the toast
+// (no bus.send for it — the handler patches the requester's UI).
 DS.finish = () => {
   emit('remote-job', { running: true, from: 'you' });
   bus.send({ kind: 'job', running: true, from: R.me() });
+  emit('toast', { text: `job started — confirm #${Math.floor(Math.random() * 1000)}` });
   clearTimeout(DS._jt);
   DS._jt = setTimeout(() => {
     emit('remote-job', { running: false, from: 'you' });
     bus.send({ kind: 'job', running: false, from: R.me() });
+    emit('toast', { text: '' });
   }, 3000);
 };
 </script>
 <script type="text/plain" id="cqrs2-sub">
-// subscribe side: remote job state lands here.
-// Patching mounted hidden in-page (was static page HTML).
+// subscribe side: remote job state lands here, then patches the view.
+// The toast needs no subscription — the handler emits it straight
+// at this window (session scope: never broadcast, never shared).
 on('job', (m) => {
   emit('remote-job', { running: m.running, from: m.from });
 });
-patch(`<div data-on:remote-job__window="$s9_job = evt.detail.running; $s9_jobby = evt.detail.from"></div>`);
+patch(`<div data-on:remote-job__window="$s9_job = evt.detail.running; $s9_jobby = evt.detail.from"></div><div data-on:toast__window="$s9_toast = evt.detail.text"></div>`);
 </script>
 <script type="text/plain" id="cqrs3-pub">
 // publish side: the global drivers below call these hooks.

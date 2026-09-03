@@ -102,4 +102,5 @@ ul.errs li { color:var(--red); margin:4px 0; }
 ul.errs li::before { content:"✗ "; }
 .ok-line { color:var(--green); font-size:13px; }
 .dlg { border:1px solid var(--yellow); border-radius:10px; padding:12px 14px; margin-top:10px; background:rgba(250,189,47,.06); font-size:14px; }
+.toast { border:1px solid var(--olive); border-radius:10px; padding:8px 12px; margin-top:10px; background:rgba(184,187,38,.08); font-size:13px; }
 .rawstream { font-size:12px; }
