@@ -252,6 +252,15 @@ DS.bus.on('inc', m => Store.merge(m), 'store');
 
 // global drivers: stable interval + mousemove call step-owned hooks
 setInterval(()=>{ if(DS.hooks.beat) DS.hooks.beat(); }, 2000);
+// name/room edits propagate instantly instead of waiting for the beat
+let hbDeb = null;
+const hbNow = ()=>{ clearTimeout(hbDeb); hbDeb = setTimeout(()=>{ if(DS.hooks.beat) DS.hooks.beat(); }, 250); };
+document.addEventListener('input', e=>{
+  if(e.target && (e.target.id === 's9_name' || e.target.id === 's9_roomSel')) hbNow();
+});
+document.addEventListener('change', e=>{
+  if(e.target && (e.target.id === 's9_name' || e.target.id === 's9_roomSel')) hbNow();
+});
 document.addEventListener('mousemove', e=>{
   if(!DS.hooks.cursor) return;
   const stage = e.target.closest && e.target.closest('#s9_stage');
