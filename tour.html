@@ -104,7 +104,7 @@
   <div class="step-grid">
     <div id="stepLeft"></div>
     <div>
-      <div class="card"><h3>Editor <span class="right"><button class="mini" id="resetBtn">Reset</button></span></h3>
+      <div class="card"><h3>Editor <span class="right"><button class="mini" id="formatBtn">Format</button><button class="mini" id="resetBtn">Reset</button></span></h3>
         <textarea id="editor"></textarea>
       </div>
       <div class="card"><h3>Rendered demo</h3>
@@ -121,6 +121,7 @@
 </main>
 </div>
 
+<script src="./vendor/js-beautify/beautify-html.js"></script>
 <script src="./vendor/codemirror/lib/codemirror.js"></script>
 <script src="./vendor/codemirror/mode/xml/xml.js"></script>
 <script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
@@ -271,6 +272,12 @@ function go(i){
 document.getElementById('backBtn').onclick = ()=>go(cur-1);
 document.getElementById('nextBtn').onclick = ()=>go(cur+1);
 document.getElementById('resetBtn').onclick = ()=>{ editor.setValue(STEPS[cur].code); renderPreview(); };
+document.getElementById('formatBtn').onclick = ()=>{
+  try{
+    editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120}));
+  }catch{ /* formatter unavailable — leave code as-is */ }
+  renderPreview();
+};
 let deb = null;
 editor.on('change', ()=>{ clearTimeout(deb); deb = setTimeout(renderPreview, 500); });
 document.getElementById('menuBtn').onclick = ()=>{
