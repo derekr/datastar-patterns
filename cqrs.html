@@ -62,7 +62,7 @@ const STEPS = [
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">command</span> → store → <span class="pe">signal</span> (view patches FROM the store, never from the event).</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Open this page in a second window. Click +1 in either.</span></li>
-    <li><span class="rn">2</span><span>Each window applies deltas to its own store replica, then patches — all converge.</span></li>
+    <li><span class="rn">2</span><span>One writer (<code class="inline">applyInc</code>) owns the store; subs only read it — all converge.</span></li>
     <li><span class="rn">3</span><span><code class="inline">handler.js</code> publishes, <code class="inline">sub.js</code> subscribes — break either.</span></li>
   </ul>`,
   code: `<div class="demo"
@@ -235,7 +235,7 @@ botBtn.onclick = ()=>{
   botBtn.textContent = 'Simulate peer: on'; botBtn.classList.add('on');
   let bx = 0.2, by = 0.3;
   botTimer = setInterval(()=>{
-    R.store.count += 1;
+    DS.applyInc ? DS.applyInc(1) : (R.store.count += 1);
     DS.dispatch('remote-count', {from:'bot 🤖'});
     window.R.seen('bot', {name:'bot 🤖', room:window.R.room()});
     const stage = document.getElementById('s9_stage');
@@ -250,23 +250,27 @@ botBtn.onclick = ()=>{
 </script>
 
 <script type="text/plain" id="cqrs1-pub">
-// publish side: write the store first, then notify.
-// The delta rides the event (BroadcastChannel gives us no server
-// to pull from); every replica applies it to ITS store below.
-DS.localInc = (d = 1) => {
+// THE store writer — the only place R.store.count changes.
+// Local clicks and remote commands both funnel through here.
+DS.applyInc = (d) => {
   R.store.count += d;
+};
+
+// ...this one just adds the broadcast for local clicks.
+DS.localInc = (d = 1) => {
+  DS.applyInc(d);
   emit('remote-count', { from: 'you' });
   bus.send({ kind: 'inc', delta: d });
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// subscribe: remote deltas mutate this window's store...
+// subscribe: remote command → same handler updates the store...
 on('inc', (m) => {
-  R.store.count += m.delta;
+  DS.applyInc(m.delta);
   emit('remote-count', { from: m.name || m.from });
 });
 
-// ...patching: read the store, then patch the view.
+// ...then read the store and patch the view. This tab never writes.
 patch(`<div data-on:remote-count__window="$s9_count = R.store.count; $s9_by = evt.detail.from"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
