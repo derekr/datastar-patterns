@@ -18,5 +18,8 @@
   construct a fixed set — keep it that way.
 - UI re-render: `collection.hooks.on('create'|'update'|'delete', …)` (verified
   firing in node smoke test).
+- Hooks fire PRE-commit (verified: `findMany` inside a hook sees nothing).
+  Render from hooks must defer a macrotask (`setTimeout(emit, 0)`) — see the
+  `changed` wiring in the C4 handler tab.
 - Upgrade path: when v1 hits npm, delete this dir and `npm i @mswjs/data`
   (code to the README shape; the API is identical).

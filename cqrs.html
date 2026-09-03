@@ -24,7 +24,7 @@
 <nav class="side" id="nav"></nav>
 <main id="main">
   <div class="sessbar">peer <code class="inline" id="peerId">…</code> · <button class="mini" id="botBtn">Simulate peer: off</button> <span class="sig">open a second window for real multiplayer</span></div>
-  <div id="submount" style="display:none" aria-hidden="true"></div>
+  <div id="submount" aria-hidden="true"></div>
   <div class="step-grid">
     <div id="stepLeft"></div>
     <div>
@@ -53,7 +53,9 @@
 <script src="./vendor/codemirror/mode/css/css.js"></script>
 <script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
 <script src="./shared.js"></script>
-<script>
+<script type="module">
+import { Collection, sync } from './vendor/msw-data/msw-data.bundle.mjs';
+window.DataLib = { Collection, sync };
 const STEPS = [
 { title: "Shared counter", sub: "delta commands, converge",
   pub: "cqrs1-pub", subscribe: "cqrs1-sub",
@@ -140,16 +142,18 @@ const STEPS = [
 { title: "Fat morph region", sub: "render locally, sync deltas",
   pub: "cqrs4-pub", subscribe: "cqrs4-sub",
   explainer: `<h2>4. Fat morph: whole region per update</h2>
-  <p class="lead">Step 1 synced fine-grained signals; here each window re-renders the whole leaderboard region per update — but the bus still carries only deltas. Same broadcast, opposite render granularity.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals</span> (small state) vs <span class="pe">fat morph</span> (whole regions). Pick per update, not per app.</div></div>
+  <p class="lead">Step 1 synced scalars by hand; here a real <code class="inline">scores</code> collection (schema + ops + cross-tab sync) owns the rows, and every change re-renders the region.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">model</span> (collection) → <span class="pe">ops</span> → hooks → render. State has a schema; views derive.</div></div>
   <ul class="how">
-    <li><span class="rn">1</span><span>+1 in either window — each side re-renders its own table.</span></li>
-    <li><span class="rn">2</span><span>Both sides render through one shared function, fed by local state.</span></li>
-    <li><span class="rn">3</span><span>Bus carries deltas; rendering is one shared function — both tabs live.</span></li>
+    <li><span class="rn">1</span><span>Score in either window — the row syncs, both tables re-render.</span></li>
+    <li><span class="rn">2</span><span>Rendering is hook-driven: no refresh calls in the ops.</span></li>
+    <li><span class="rn">3</span><span>Remove a player — delete propagates like everything else.</span></li>
   </ul>`,
   code: `<div class="demo">
   <button class="btn"
     data-on:click="DS.boardAdd()">+1 me</button>
+  <button class="btn secondary"
+    data-on:click="DS.boardRemove()">remove me</button>
   <div id="s9_board"
     style="margin-top:10px"><em>empty — score something</em></div>
 </div>`
@@ -166,7 +170,7 @@ window.R = (()=>{
   const COLORS = ['#b8bb26','#fe8019','#d3869b','#fabd2f','#8ec07c','#83a598'];
   const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
   const R = {
-    peers, board: {}, colorFor,
+    peers, colorFor,
     room(){ const el = document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; },
     me(){ const el = document.getElementById('s9_name'); return (el && el.value) || 'anon'; },
     seen(id, p){ peers.set(id, {...p, ts:Date.now()}); R.renderRoster(); },
@@ -207,8 +211,9 @@ window.R = (()=>{
       stage.querySelectorAll('.caret').forEach(c=>{ if(now - (+c.dataset.ts || 0) > 3000) c.remove(); });
     },
     boardRender(){
-      const rows = Object.entries(R.board).sort((a,b)=>b[1]-a[1]);
-      const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table>`;
+      const scores = window.__scores;
+      const rows = scores ? scores.findMany(undefined, { orderBy: { pts: 'desc' } }) : [];
+      const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map((r)=>`<tr><td>${DS.esc(r.name)}</td><td>${r.pts}</td></tr>`).join('')}</table>`;
       const mount = document.getElementById('s9_board');
       if(mount) mount.innerHTML = html;
       return html;
@@ -362,24 +367,52 @@ on('cursor', (m) => {
 });
 </script>
 <script type="text/plain" id="cqrs4-pub">
-// publish: mutate local state, announce the change, broadcast the delta.
-// No HTML crosses the bus — only data. Rendering happens below.
-DS.boardAdd = (name) => {
+// model + ops. Guarded: re-evaluating tabs must not wipe rows.
+// (Definition lives here, not page infra, and stays honest
+// because the guard makes re-evaluation a no-op.)
+
+// minimal Standard Schema: {name: string, pts: number}. No zod.
+const ScoreSchema = {
+  '~standard': {
+    version: 1,
+    vendor: 'tour-handroll',
+    validate: (v) => {
+      const bad =
+        typeof v !== 'object' || v === null ? 'must be an object' :
+        typeof v.name !== 'string' ? 'name must be a string' :
+        typeof v.pts !== 'number' ? 'pts must be a number' : null;
+      return bad ? { issues: [{ message: bad }] } : { value: v };
+    },
+  },
+};
+
+window.__scores ??= (() => {
+  const scores = new DataLib.Collection({ schema: ScoreSchema, extensions: [DataLib.sync()] });
+  // v1 fires hooks PRE-commit (verified: findMany inside a hook sees
+  // nothing), so defer the render past commit. One macrotask is enough:
+  // commit settles synchronously after hooks, then the timer runs.
+  const changed = () => setTimeout(() => emit('board-changed', {}), 0);
+  scores.hooks.on('create', changed);
+  scores.hooks.on('update', changed);
+  scores.hooks.on('delete', changed);
+  return scores;
+})();
+const scores = window.__scores;
+
+// ops: the only writers. No rendering here — hooks above do that.
+DS.boardAdd = async (name) => {
   const n = name || R.me();
-  R.board[n] = (R.board[n] ?? 0) + 1;
-  emit('board-changed', {});
-  bus.send({ kind: 'board-add', name: n });
+  const existing = scores.findFirst((q) => q.where({ name: n }));
+  if (existing) await scores.update(existing, { data: (r) => { r.pts += 1; } });
+  else await scores.create({ name: n, pts: 1 });
+};
+DS.boardRemove = async (name) => {
+  scores.delete((q) => q.where({ name: name || R.me() }));
 };
 </script>
 <script type="text/plain" id="cqrs4-sub">
-// subscribe: remote deltas mutate the local replica...
-on('board-add', (m) => {
-  R.board[m.name] = (R.board[m.name] ?? 0) + 1;
-  emit('board-changed', {});
-});
-
-// ...and every change — local or remote — re-renders this region
-// from local state, through one shared function.
+// read model: every board change re-renders this region from the collection.
+// (Subscribe happens next to the model in handler.js — one wiring, one place.)
 patch(`<div data-on:board-changed__window="R.boardRender()"></div>`);
 </script>
 
