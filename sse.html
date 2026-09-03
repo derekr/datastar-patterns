@@ -302,12 +302,33 @@ const backend = {
   },
   resetAll(){ worker.resetHandlers(); },
 };
-try {
-  // worker.start() is async: gate everything until the worker can intercept.
+async function ensureWorker() {
+  // worker.start() resolving ("Mocking enabled") is NOT the same as this
+  // page being controlled: bfcache/session-restore loads can come back
+  // uncontrolled, and then every request bypasses to the real network
+  // (404s attributed to the fetch call site — exactly that screenshot).
   await worker.start({
     onUnhandledRequest: 'bypass',
     serviceWorker: {url: './mockServiceWorker.js', options: {scope: './'}},
   });
+  if(navigator.serviceWorker.controller) return 'ready';
+  if(!sessionStorage.getItem('msw-reloaded')){
+    sessionStorage.setItem('msw-reloaded', '1');
+    location.reload();
+    await new Promise(()=>{});
+  }
+  return 'uncontrolled';
+}
+try {
+  // gate everything until the worker can actually intercept.
+  const state = await ensureWorker();
+  if(state !== 'ready'){
+    const main = document.getElementById('main');
+    const div = document.createElement('div');
+    div.className = 'banner off';
+    div.textContent = 'MSW worker registered but this page is uncontrolled (reload didn\u2019t take control) — demos will 404. Hard-reload the tab.';
+    main.prepend(div);
+  }
 } catch(e) {
   const main = document.getElementById('main');
   const div = document.createElement('div');
