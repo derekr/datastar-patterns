@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MSW spike (scratch — delete after decision)</title>
+<script type="module" src="./vendor/datastar.js"></script>
+<link rel="stylesheet" href="./theme.css" />
+<style>main{max-width:860px;margin:0 auto;padding:26px}textarea{width:100%;min-height:180px;background:var(--code);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px}</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="./index.html"><span class="mark">▦</span> MSW spike</a>
+  <span class="pill" id="mswState">worker: starting…</span>
+</header>
+<main>
+  <div class="card">
+    <h3>Demo (gated on worker.start())</h3>
+    <button class="btn" id="pingBtn" data-on:click="@get('/api/ping')" disabled>Ping via MSW</button>
+    <div id="s8_out" style="margin-top:8px"><em>pong lands here</em></div>
+  </div>
+  <div class="card">
+    <h3>Handler override (worker.use)</h3>
+    <textarea id="resolver" spellcheck="false"></textarea>
+    <p>
+      <button class="mini" id="applyBtn">Apply override</button>
+      <button class="mini" id="resetBtn">Reset handlers</button>
+      <span class="sig" id="ovStatus"></span>
+    </p>
+  </div>
+  <div class="card"><h3>What proves what</h3>
+    <p class="sig">1. pill says “mocking enabled” → worker registered (no file:// — needs http).<br>
+    2. Ping patches 3 staged chunks → streaming SSE through the worker.<br>
+    3. Edit resolver + Apply → override live without reload (worker.use).<br>
+    4. Devtools Network shows /api/ping as real requests.</p>
+  </div>
+</main>
+<script src="./vendor/msw/iife.js"></script>
+<script type="module">
+const pill = document.getElementById('mswState');
+const pingBtn = document.getElementById('pingBtn');
+const DEFAULT_RESOLVER = `const enc = new TextEncoder();
+const stream = new ReadableStream({
+  start(c) {
+    const w = (t) => c.enqueue(enc.encode(t));
+    w('event: datastar-patch-elements\\n' +
+      'data: selector #s8_out\\n' +
+      'data: mode inner\\n' +
+      'data: elements <em>stage 1…</em>\\n\\n');
+    setTimeout(() => w('event: datastar-patch-elements\\n' +
+      'data: selector #s8_out\\n' +
+      'data: mode inner\\n' +
+      'data: elements <em>stage 2…</em>\\n\\n'), 400);
+    setTimeout(() => {
+      w('event: datastar-patch-elements\\n' +
+        'data: selector #s8_out\\n' +
+        'data: mode inner\\n' +
+        'data: elements <strong>pong (via MSW)</strong>\\n\\n');
+      c.close();
+    }, 800);
+  }
+});
+return new HttpResponse(stream, {headers: {'Content-Type': 'text/event-stream'}});`;
+document.getElementById('resolver').value = DEFAULT_RESOLVER;
+
+let worker;
+try {
+  const {setupWorker, http, HttpResponse} = window.MockServiceWorker;
+  window.__mswHttp = http;
+  window.__mswResp = HttpResponse;
+  const resolver = new Function('HttpResponse', '"use strict";' + DEFAULT_RESOLVER);
+  worker = setupWorker(http.get('/api/ping', async () => resolver(HttpResponse)));
+  // Service Worker registration is async: nothing Datastar fetches
+  // can run before this resolves (button stays disabled until then).
+  await worker.start({onUnhandledRequest: 'bypass'});
+  pill.textContent = 'worker: mocking enabled';
+  pingBtn.disabled = false;
+  document.getElementById('ovStatus').textContent = 'default handler live';
+} catch(e) {
+  pill.textContent = 'worker: FAILED — ' + (e && e.message || e);
+}
+
+function compileResolver(code) {
+  // same shape as our handler tabs: resolver body, HttpResponse in scope
+  return new Function('HttpResponse', '"use strict";' + code);
+}
+document.getElementById('applyBtn').onclick = () => {
+  try {
+    const fn = compileResolver(document.getElementById('resolver').value);
+    worker.use(window.__mswHttp.get('/api/ping', async () => fn(window.__mswResp)));
+    document.getElementById('ovStatus').textContent = 'override live';
+  } catch(e) {
+    document.getElementById('ovStatus').textContent = 'override FAILED: ' + (e && e.message || e);
+  }
+};
+document.getElementById('resetBtn').onclick = () => {
+  worker.resetHandlers();
+  applyDefault();
+  document.getElementById('ovStatus').textContent = 'reset to default';
+};
+</script>
+</body>
+</html>
