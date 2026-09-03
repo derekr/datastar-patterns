@@ -102,7 +102,7 @@
   <div class="step-grid">
     <div id="stepLeft"></div>
     <div>
-      <div class="card"><h3>Editor <span class="right"><button class="mini primary" id="runBtn">▶ Run</button><button class="mini" id="resetBtn">Reset</button></span></h3>
+      <div class="card"><h3>Editor <span class="right"><button class="mini" id="resetBtn">Reset</button></span></h3>
         <textarea id="editor"></textarea>
       </div>
       <div class="card"><h3>Rendered demo</h3>
@@ -114,7 +114,7 @@
   <div class="card" id="inspector">
     <h3>Signal inspector (live)</h3>
     <pre id="inspectorPre" data-json-signals="{include: /^s\d_/}"></pre>
-    <footer class="hint">Edit the code, hit <kbd>Run</kbd> (or just type — it re-renders). Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim.</footer>
+    <footer class="hint">Edit the code — it re-renders as you type. Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim.</footer>
   </div>
 </main>
 </div>
@@ -268,7 +268,6 @@ function go(i){
 }
 document.getElementById('backBtn').onclick = ()=>go(cur-1);
 document.getElementById('nextBtn').onclick = ()=>go(cur+1);
-document.getElementById('runBtn').onclick = ()=>renderPreview();
 document.getElementById('resetBtn').onclick = ()=>{ editor.setValue(STEPS[cur].code); renderPreview(); };
 let deb = null;
 editor.on('change', ()=>{ clearTimeout(deb); deb = setTimeout(renderPreview, 500); });
