@@ -369,6 +369,7 @@ window.TourShell = {
         }catch(e){ rec.err = String((e && e.message) || e); }
       }else if(rec.kind === 'sync-sub'){
         DS.bus.clearOwner(ownerOf(cur));
+        if(window.Store && window.Store.resetSubs) window.Store.resetSubs();
         const mount = document.getElementById('submount');
         if(mount) mount.innerHTML = '';
         try{
@@ -394,6 +395,7 @@ window.TourShell = {
     }
     function go(i){
       DS.bus.clearOwner(ownerOf(cur)); // leaving: drop this step's subs
+      if(window.Store && window.Store.resetSubs) window.Store.resetSubs();
       DS.hooks = {}; // leaving: drop step-owned publish hooks
       const mount = document.getElementById('submount'); // leaving: unmount patch listeners
       if(mount) mount.innerHTML = '';

@@ -222,12 +222,15 @@ document.getElementById('peerId').textContent = DS.bus.id;
 window.Store = {
   id: DS.bus.id,
   state: {count: 0},
+  subs: [],
   get(){ return this.state; },
+  subscribe(fn){ this.subs.push(fn); },
+  resetSubs(){ this.subs.length = 0; },
   mutate(cmd){
     if(cmd.type === 'inc') this.state.count += cmd.delta;
   },
   notify(cmd){
-    DS.dispatch('store-changed', {by: cmd.by});
+    this.subs.slice().forEach(fn=>{ try{ fn(cmd); }catch(e){ console.warn(e); } });
   },
   commit(cmd){
     this.mutate(cmd);
@@ -283,9 +286,13 @@ Commands.inc = (d = 1) => {
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// read model: whenever the store changes, patch the view from it.
-// The patch IS the subscription — declarative, no writes here.
-patch(`<div data-on:store-changed__window="$s9_count = Store.get().count; $s9_by = evt.detail.by === Store.id ? evt.detail.by + ' (you)' : evt.detail.by"></div>`);
+// react to the bus event -> re-read the store -> patch.
+// The subscribe IS the read path; the patch below renders what we read.
+Store.subscribe((cmd) => {
+  const s = Store.get();
+  emit('render-count', { count: s.count, by: cmd.by });
+});
+patch(`<div data-on:render-count__window="$s9_count = evt.detail.count; $s9_by = evt.detail.by === Store.id ? evt.detail.by + ' (you)' : evt.detail.by"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
 // publish side: a ~3s shared job. Whoever clicks, every window spins.
