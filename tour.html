@@ -316,7 +316,10 @@ function refreshHints(){
   const sigs = readSignals();
   hints.forEach(h=>{ h.node.textContent = '= ' + fmt(sigs[h.signal]); });
 }
-setInterval(refreshHints, 400);
+// reactive: inspector <pre> is rewritten on every signal change —
+// update hints immediately instead of polling.
+new MutationObserver(refreshHints).observe(inspectorPre, {childList:true, characterData:true, subtree:true});
+setInterval(refreshHints, 2000); // fallback
 
 go(Math.max(0,(parseInt((location.hash||'').replace('#tour-',''),10)||1)-1));
 document.addEventListener('datastar-ready', ()=>renderPreview());
