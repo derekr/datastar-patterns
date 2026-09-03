@@ -59,13 +59,15 @@
 <script>
 const STEPS = [
 { title: "Shared counter", sub: "delta commands, converge",
+  pub: "cqrs1-pub", sub: "cqrs1-sub",
+  pub: "cqrs1-pub", subscribe: "cqrs1-sub",
   explainer: `<h2>1. Shared counter, no server</h2>
   <p class="lead">Clicks are <strong>commands</strong> (deltas) broadcast to every window. Each window applies the same deltas to a shared signal — commutative, so all windows converge.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">command</span> (delta + broadcast) → <span class="pe">shared signal</span> (every window applies it).</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Open this page in a second window. Click +1 in either.</span></li>
     <li><span class="rn">2</span><span>Both counters converge; “last write by” names the clicker.</span></li>
-    <li><span class="rn">3</span><span>Solo? Toggle <strong>Simulate peer</strong> up top.</span></li>
+    <li><span class="rn">3</span><span><code class="inline">handler.js</code> publishes, <code class="inline">sub.js</code> subscribes — break either.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s9_count="0"
@@ -77,13 +79,15 @@ const STEPS = [
 </div>`
 },
 { title: "Shared vs tab-local", sub: "spinner for all, dialog for one",
+  pub: "cqrs2-pub", sub: "cqrs2-sub",
+  pub: "cqrs2-pub", subscribe: "cqrs2-sub",
   explainer: `<h2>2. Ephemeral: shared vs tab-local</h2>
   <p class="lead">Two kinds of ephemeral state. The <strong>finish spinner is shared</strong> — whoever clicks, every window spins. The <strong>dialog is tab-local</strong> (<code class="inline">$_</code> never leaves the tab). Display name is a tab preference: stored nowhere, sent nowhere.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">shared ephemeral</span> (broadcast in-flight) vs <span class="pe">tab ephemeral</span> (<code class="inline">$_</code>, broadcast nothing).</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Click Finish in one window — all windows spin ~3s.</span></li>
     <li><span class="rn">2</span><span>Open the dialog — other windows never know.</span></li>
-    <li><span class="rn">3</span><span>Type a name — it lives and dies in this tab.</span></li>
+    <li><span class="rn">3</span><span>Publish lives in <code class="inline">handler.js</code>, subscribe in <code class="inline">sub.js</code>.</span></li>
   </ul>`,
   code: `<div class="demo"
   data-signals:s9_job="false"
@@ -109,13 +113,15 @@ const STEPS = [
 </div>`
 },
 { title: "Cursors & rooms", sub: "presence per audience",
+  pub: "cqrs3-pub", sub: "cqrs3-sub",
+  pub: "cqrs3-pub", subscribe: "cqrs3-sub",
   explainer: `<h2>3. Cursors &amp; rooms: ephemeral per audience</h2>
   <p class="lead">Cursors are the purest ephemeral shared state: 3s expiry, never stored, scoped by <strong>room</strong> (tenant/audience). Names are tab preferences stapled onto messages — never state themselves.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">heartbeat + expiry</span> (presence) · <span class="pe">last-position-wins</span> (cursors) · room filters both.</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Two windows, same room — move the mouse, see the caret.</span></li>
     <li><span class="rn">2</span><span>Switch one window's room — it vanishes from the other.</span></li>
-    <li><span class="rn">3</span><span>Close a window — presence expires within seconds.</span></li>
+    <li><span class="rn">3</span><span><code class="inline">handler.js</code> sends, <code class="inline">sub.js</code> renders; drivers are page infra.</span></li>
   </ul>`,
   code: `<div class="demo">
   <label>Room <select id="s9_roomSel">
@@ -134,13 +140,15 @@ const STEPS = [
 </div>`
 },
 { title: "Fat morph region", sub: "whole HTML blob per update",
+  pub: "cqrs4-pub", sub: "cqrs4-sub",
+  pub: "cqrs4-pub", subscribe: "cqrs4-sub",
   explainer: `<h2>4. Fat morph: whole region per update</h2>
   <p class="lead">Step 1 synced fine-grained signals; here the “server” renders the whole leaderboard as one HTML blob per update (last-writer-wins). Same broadcast, opposite granularity.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals</span> (small state) vs <span class="pe">fat morph</span> (whole regions). Pick per update, not per app.</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>+1 in either window — the whole table swaps at once.</span></li>
     <li><span class="rn">2</span><span>Version tag shows last-writer-wins in action.</span></li>
-    <li><span class="rn">3</span><span>Display-only region: no inputs inside to clobber.</span></li>
+    <li><span class="rn">3</span><span>Publish renders + sends, subscribe swaps — both tabs live.</span></li>
   </ul>`,
   code: `<div class="demo">
   <button class="btn"
@@ -150,118 +158,82 @@ const STEPS = [
 </div>`
 },
 ];
-TourShell.init({steps: STEPS, hashPrefix: 'cqrs-'});
+// deferred: tab sources live in text/plain blocks below this script.
+document.addEventListener('DOMContentLoaded', ()=>TourShell.init({steps: STEPS, hashPrefix: 'cqrs-'}));
 
-// ---------------- multiplayer wiring (page-level, not editor code) ----------------
+// ---------------- page infra (not lesson code) ----------------
+// R: render/state helpers the tabs use. Mutable state lives here so
+// re-evaluating a tab never wipes scores or peers.
+window.R = (()=>{
+  const peers = new Map();
+  const COLORS = ['#b8bb26','#fe8019','#d3869b','#fabd2f','#8ec07c','#83a598'];
+  const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
+  const R = {
+    peers, board: {}, boardVer: 0, colorFor,
+    room(){ const el = document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; },
+    me(){ const el = document.getElementById('s9_name'); return (el && el.value) || 'anon'; },
+    seen(id, p){ peers.set(id, {...p, ts:Date.now()}); R.renderRoster(); },
+    renderRoster(){
+      const mount = document.getElementById('s9_roster');
+      if(!mount) return;
+      const now = Date.now(), room = R.room();
+      const rows = [...peers.entries()].filter(([id,p])=>now-p.ts < 6000 && p.room === room);
+      mount.innerHTML = rows.length
+        ? rows.map(([id,p])=>`<span class="sig" style="margin-right:12px"><span class="dot on" style="background:${colorFor(id)}"></span>${DS.esc(p.name)}${id===DS.bus.id?' (you)':''}</span>`).join('')
+        : `<span class="sig">nobody here (yet)</span>`;
+    },
+    caret(m){
+      if(m.room !== R.room()) return;
+      const stage = document.getElementById('s9_stage');
+      if(!stage) return;
+      let c = stage.querySelector(`[data-peer="${m.from}"]`);
+      if(!c){
+        c = document.createElement('div');
+        c.className = 'caret';
+        c.dataset.peer = m.from;
+        c.innerHTML = `<div class="cur"></div><div class="tag"></div>`;
+        stage.appendChild(c);
+      }
+      const col = colorFor(m.from);
+      c.style.left = (m.x*100)+'%';
+      c.style.top = (m.y*100)+'%';
+      c.querySelector('.cur').style.background = col;
+      const tag = c.querySelector('.tag');
+      tag.textContent = m.name || m.from;
+      tag.style.background = col;
+      c.dataset.ts = Date.now();
+    },
+    sweep(){
+      const stage = document.getElementById('s9_stage');
+      if(!stage) return;
+      const now = Date.now();
+      stage.querySelectorAll('.caret').forEach(c=>{ if(now - (+c.dataset.ts || 0) > 3000) c.remove(); });
+    },
+    boardRender(){
+      const rows = Object.entries(R.board).sort((a,b)=>b[1]-a[1]);
+      const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table><p class="sig">v${R.boardVer} · last-writer-wins</p>`;
+      const mount = document.getElementById('s9_board');
+      if(mount) mount.innerHTML = html;
+      return html;
+    },
+  };
+  return R;
+})();
+DS.hooks = {};
 document.getElementById('peerId').textContent = DS.bus.id;
 
-DS.localInc = (d=1)=>{
-  DS.dispatch('remote-inc', {delta:d, from:'you'});
-  DS.bus.send({kind:'inc', delta:d});
-};
-DS.bus.on('inc', m=>DS.dispatch('remote-inc', {delta:m.delta, from:m.name || m.from}));
-
-DS.finish = ()=>{
-  DS.dispatch('remote-job', {running:true, from:'you'});
-  DS.bus.send({kind:'job', running:true, from:myName()});
-  clearTimeout(DS._jt);
-  DS._jt = setTimeout(()=>{
-    DS.dispatch('remote-job', {running:false, from:'you'});
-    DS.bus.send({kind:'job', running:false, from:myName()});
-  }, 3000);
-};
-DS.bus.on('job', m=>DS.dispatch('remote-job', {running:m.running, from:m.from}));
-
-// ---- presence + roster ----
-const peers = new Map();
-const COLORS = ['#b8bb26','#fe8019','#d3869b','#fabd2f','#8ec07c','#83a598'];
-const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
-const roomSel = ()=>{ const el=document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; };
-const myName = ()=>{ const el=document.getElementById('s9_name'); return (el && el.value) || 'anon'; };
-function renderRoster(){
-  const mount = document.getElementById('s9_roster');
-  if(!mount) return;
-  const now = Date.now(), room = roomSel();
-  const rows = [...peers.entries()].filter(([id,p])=>now-p.ts < 6000 && p.room === room);
-  mount.innerHTML = rows.length
-    ? rows.map(([id,p])=>`<span class="sig" style="margin-right:12px"><span class="dot on" style="background:${colorFor(id)}"></span>${DS.esc(p.name)}${id===DS.bus.id?' (you)':''}</span>`).join('')
-    : `<span class="sig">nobody here (yet)</span>`;
-}
-function heartbeat(){
-  DS.bus.send({kind:'presence', room:roomSel(), name:myName()});
-  peers.set(DS.bus.id, {name:myName(), room:roomSel(), ts:Date.now()});
-  renderRoster();
-}
-DS.bus.on('presence', m=>{ peers.set(m.from, {name:m.name||m.from, room:m.room||'lobby', ts:Date.now()}); renderRoster(); });
-setInterval(heartbeat, 2000);
-heartbeat();
-
-// ---- cursors ----
-let lastCur = 0;
+// global drivers: stable interval + mousemove call step-owned hooks
+setInterval(()=>{ if(DS.hooks.beat) DS.hooks.beat(); }, 2000);
 document.addEventListener('mousemove', e=>{
+  if(!DS.hooks.cursor) return;
   const stage = e.target.closest && e.target.closest('#s9_stage');
   if(!stage) return;
-  const now = Date.now();
-  if(now - lastCur < 60) return;
-  lastCur = now;
   const r = stage.getBoundingClientRect();
-  DS.bus.send({kind:'cursor', x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height, room:roomSel(), name:myName()});
+  DS.hooks.cursor((e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height);
 });
-function renderCursor(m){
-  if(m.room !== roomSel()) return;
-  const stage = document.getElementById('s9_stage');
-  if(!stage) return;
-  let c = stage.querySelector(`[data-peer="${m.from}"]`);
-  if(!c){
-    c = document.createElement('div');
-    c.className = 'caret';
-    c.dataset.peer = m.from;
-    c.innerHTML = `<div class="cur"></div><div class="tag"></div>`;
-    stage.appendChild(c);
-  }
-  const col = colorFor(m.from);
-  c.style.left = (m.x*100)+'%';
-  c.style.top = (m.y*100)+'%';
-  c.querySelector('.cur').style.background = col;
-  const tag = c.querySelector('.tag');
-  tag.textContent = m.name || m.from;
-  tag.style.background = col;
-  c.dataset.ts = Date.now();
-}
-DS.bus.on('cursor', renderCursor);
-setInterval(()=>{
-  const stage = document.getElementById('s9_stage');
-  if(!stage) return;
-  const now = Date.now();
-  stage.querySelectorAll('.caret').forEach(c=>{ if(now - (+c.dataset.ts || 0) > 3000) c.remove(); });
-}, 1000);
+setInterval(()=>window.R.sweep(), 1000);
 
-// ---- fat-morph board ----
-let boardVer = 0;
-const board = {};
-DS.boardRender = ()=>{
-  const mount = document.getElementById('s9_board');
-  const rows = Object.entries(board).sort((a,b)=>b[1]-a[1]);
-  const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table><p class="sig">v${boardVer} · last-writer-wins</p>`;
-  if(mount) mount.innerHTML = html;
-  return html;
-};
-DS.boardAdd = (name)=>{
-  const n = name || myName();
-  board[n] = (board[n] ?? 0) + 1;
-  boardVer++;
-  const html = DS.boardRender();
-  DS.bus.send({kind:'board', html, v:boardVer});
-};
-DS.bus.on('board', m=>{
-  if(m.v > boardVer){
-    boardVer = m.v;
-    const mount = document.getElementById('s9_board');
-    if(mount) mount.innerHTML = m.html;
-  }
-});
-
-// ---- simulate-peer bot ----
+// ---- simulate-peer bot (per-window simulation, not lesson code) ----
 let botTimer = null;
 const botBtn = document.getElementById('botBtn');
 botBtn.onclick = ()=>{
@@ -270,17 +242,99 @@ botBtn.onclick = ()=>{
   let bx = 0.2, by = 0.3;
   botTimer = setInterval(()=>{
     DS.dispatch('remote-inc', {delta:1, from:'bot 🤖'});
-    peers.set('bot', {name:'bot 🤖', room:roomSel(), ts:Date.now()});
-    renderRoster();
+    window.R.seen('bot', {name:'bot 🤖', room:window.R.room()});
     const stage = document.getElementById('s9_stage');
     if(stage){
       bx = Math.min(0.95, Math.max(0.05, bx + (Math.random()-0.5)*0.2));
       by = Math.min(0.9, Math.max(0.1, by + (Math.random()-0.5)*0.2));
-      renderCursor({from:'bot', x:bx, y:by, room:roomSel(), name:'bot 🤖'});
+      window.R.caret({from:'bot', x:bx, y:by, room:window.R.room(), name:'bot 🤖'});
     }
-    if(document.getElementById('s9_board') && Math.random() < 0.5) DS.boardAdd('bot 🤖');
+    if(document.getElementById('s9_board') && DS.boardAdd && Math.random() < 0.5) DS.boardAdd('bot 🤖');
   }, 2500);
 };
 </script>
+
+<script type="text/plain" id="cqrs1-pub">
+// publish side: delta command, applied locally + broadcast.
+// Every window (including this one) applies the same delta,
+// so all counters converge.
+DS.localInc = (d = 1) => {
+  emit('remote-inc', { delta: d, from: 'you' });
+  bus.send({ kind: 'inc', delta: d });
+};
+</script>
+<script type="text/plain" id="cqrs1-sub">
+// subscribe side: remote deltas land here.
+// Static listener in page: $s9_count += evt.detail.delta.
+on('inc', (m) => {
+  emit('remote-inc', { delta: m.delta, from: m.name || m.from });
+});
+</script>
+<script type="text/plain" id="cqrs2-pub">
+// publish side: a ~3s shared job. Whoever clicks, every window spins.
+DS.finish = () => {
+  emit('remote-job', { running: true, from: 'you' });
+  bus.send({ kind: 'job', running: true, from: R.me() });
+  clearTimeout(DS._jt);
+  DS._jt = setTimeout(() => {
+    emit('remote-job', { running: false, from: 'you' });
+    bus.send({ kind: 'job', running: false, from: R.me() });
+  }, 3000);
+};
+</script>
+<script type="text/plain" id="cqrs2-sub">
+// subscribe side: remote job state lands here.
+// Static listener in page: $s9_job = evt.detail.running.
+on('job', (m) => {
+  emit('remote-job', { running: m.running, from: m.from });
+});
+</script>
+<script type="text/plain" id="cqrs3-pub">
+// publish side: the global drivers below call these hooks.
+// (2s interval + document mousemove live in page infra.)
+let lastCur = 0;
+DS.hooks.beat = () => {
+  bus.send({ kind: 'presence', room: R.room(), name: R.me() });
+  R.seen(DS.bus.id, { name: R.me(), room: R.room() });
+};
+DS.hooks.cursor = (x, y) => {
+  const now = Date.now();
+  if (now - lastCur < 60) return;
+  lastCur = now;
+  bus.send({ kind: 'cursor', x, y, room: R.room(), name: R.me() });
+};
+</script>
+<script type="text/plain" id="cqrs3-sub">
+// subscribe side: presence → roster, cursor → caret.
+// Carets expire after 3s (sweeper is page infra).
+on('presence', (m) => {
+  R.seen(m.from, { name: m.name || m.from, room: m.room || 'lobby' });
+});
+on('cursor', (m) => {
+  R.caret(m);
+});
+</script>
+<script type="text/plain" id="cqrs4-pub">
+// publish side: score locally, render, broadcast the whole blob.
+DS.boardAdd = (name) => {
+  const n = name || R.me();
+  R.board[n] = (R.board[n] ?? 0) + 1;
+  R.boardVer++;
+  const html = R.boardRender();
+  bus.send({ kind: 'board', html, v: R.boardVer });
+};
+</script>
+<script type="text/plain" id="cqrs4-sub">
+// subscribe side: last-writer-wins whole-blob swap.
+// Display-only region: no inputs inside to clobber.
+on('board', (m) => {
+  if (m.v > R.boardVer) {
+    R.boardVer = m.v;
+    const mount = document.getElementById('s9_board');
+    if (mount) mount.innerHTML = m.html;
+  }
+});
+</script>
+
 </body>
 </html>

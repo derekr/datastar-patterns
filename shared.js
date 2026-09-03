@@ -156,8 +156,15 @@ DS.bus = (()=>{
   const api = {
     id,
     send(msg){ try{ bc && bc.postMessage({from:id, ...msg}); }catch{} },
-    on(kind, fn){ (handlers[kind] = handlers[kind] || []).push(fn); },
-    receive(kind, msg){ (handlers[kind]||[]).forEach(fn=>{ try{ fn(msg); }catch(e){ console.warn(e); } }); },
+    on(kind, fn, owner){
+      const rec = {fn, owner: owner || null};
+      (handlers[kind] = handlers[kind] || []).push(rec);
+      return ()=>{ const a = handlers[kind] || []; const i = a.indexOf(rec); if(i >= 0) a.splice(i, 1); };
+    },
+    clearOwner(owner){
+      Object.keys(handlers).forEach(k=>{ handlers[k] = handlers[k].filter(r=>r.owner !== owner); });
+    },
+    receive(kind, msg){ (handlers[kind]||[]).forEach(rec=>{ try{ rec.fn(msg); }catch(e){ console.warn(e); } }); },
   };
   if(bc) bc.onmessage = ev=>{
     const m = ev.data || {};
@@ -248,13 +255,21 @@ window.TourShell = {
     previewErr.style.marginBottom = '12px';
     preview.before(previewErr);
 
-    // per-step file buffers; js default read from text/plain blocks (no escaping issues)
+    // per-step files: demo.html always; handler.js (endpoints) and/or
+    // sub.js (subscriptions) when the step declares them. JS defaults come
+    // from text/plain blocks (no escaping issues). Buffers persist per step.
+    const srcOf = id=>(document.getElementById(id)?.textContent ?? '').replace(/^\n+|\s+$/g,'');
     steps.forEach(s=>{
-      s._html = s.code;
-      s._js = s.hsrc ? (document.getElementById(s.hsrc)?.textContent ?? '').replace(/^\n+|\s+$/g,'') : null;
+      s._files = [{name:'demo.html', mode:'htmlmixed', buf:s.code, err:null}];
+      if(s.hsrc) s._files.push({name:'handler.js', kind:'endpoint', mode:'javascript', buf:srcOf(s.hsrc), src:s.hsrc, err:null});
+      if(s.pub) s._files.push({name:'handler.js', kind:'sync-pub', mode:'javascript', buf:srcOf(s.pub), src:s.pub, err:null});
+      if(s.sub) s._files.push({name:'sub.js', kind:'sync-sub', mode:'javascript', buf:srcOf(s.sub), src:s.sub, err:null});
       s._file = 'demo.html';
-      s._err = null;
     });
+    const curStep = ()=>steps[cur];
+    const fileRec = name=>curStep()._files.find(f=>f.name === name);
+    const jsRecs = ()=>curStep()._files.filter(f=>f.mode === 'javascript');
+    const ownerOf = i=>hashPrefix + i;
 
     steps.forEach((s,i)=>{
       const b = document.createElement('button');
@@ -297,54 +312,72 @@ window.TourShell = {
     setInterval(refreshHints, 2000);
 
     function renderTabs(){
-      const s = steps[cur];
       tabsBar.innerHTML = '';
-      const mk = (name, active)=>{
+      curStep()._files.forEach(f=>{
         const b = document.createElement('button');
-        b.className = 'etab' + (active ? ' active' : '');
-        b.textContent = name;
-        b.onclick = ()=>selectFile(name);
+        b.className = 'etab' + (curStep()._file === f.name ? ' active' : '');
+        b.textContent = f.name;
+        b.onclick = ()=>selectFile(f.name);
         tabsBar.appendChild(b);
-      };
-      mk('demo.html', s._file === 'demo.html');
-      if(s._js !== null) mk('handler.js', s._file === 'handler.js');
+      });
+    }
+    function firstErr(){
+      for(const f of jsRecs()) if(f.err) return f.err;
+      return null;
     }
     function showStatus(){
-      const s = steps[cur];
-      if(s._js === null){ statusLine.style.display = 'none'; return; }
+      if(!jsRecs().length){ statusLine.style.display = 'none'; return; }
       statusLine.style.display = 'block';
-      if(s._err){
+      const err = firstErr();
+      if(err){
         statusLine.className = 'estatus err';
-        statusLine.textContent = '● handler error — ' + s._err;
+        statusLine.textContent = '● tab error — ' + err;
       }else{
         statusLine.className = 'estatus ok';
-        statusLine.textContent = '● handler live';
+        statusLine.textContent = '● tabs live';
       }
     }
     function showPreviewErr(){
-      const s = steps[cur];
-      if(s._err){
+      const err = firstErr();
+      if(err){
         previewErr.style.display = 'block';
-        previewErr.innerHTML = `⚠️ <strong>handler.js failed to compile</strong> — demo below runs the last-good version.<br><code class="inline">${DS.esc(s._err)}</code>`;
+        previewErr.innerHTML = `⚠️ <strong>${DS.esc(curStep()._file)} failed to compile</strong> — demo below runs the last-good version.<br><code class="inline">${DS.esc(err)}</code>`;
       }else{
         previewErr.style.display = 'none';
         previewErr.innerHTML = '';
       }
     }
     function selectFile(name){
-      const s = steps[cur];
+      const s = curStep();
       s._file = name;
-      editor.setOption('mode', name === 'handler.js' ? 'javascript' : 'htmlmixed');
-      editor.setValue(name === 'handler.js' ? s._js : s._html);
+      const rec = fileRec(name);
+      editor.setOption('mode', rec.mode);
+      editor.setValue(rec.buf);
       renderTabs();
       placeHints();
     }
-    function applyHandler(){
-      const s = steps[cur];
-      if(s._js === null) return;
-      const r = DS.runHandlerCode(editor.getValue());
-      s._js = editor.getValue();
-      s._err = r.error || null;
+    function runJsRec(rec){
+      if(rec.kind === 'endpoint'){
+        const r = DS.runHandlerCode(rec.buf);
+        rec.err = r.error || null;
+      }else if(rec.kind === 'sync-pub'){
+        try{
+          new Function('emit','bus','R', rec.buf)(DS.dispatch, DS.bus, window.R || {});
+          rec.err = null;
+        }catch(e){ rec.err = String((e && e.message) || e); }
+      }else if(rec.kind === 'sync-sub'){
+        DS.bus.clearOwner(ownerOf(cur));
+        try{
+          new Function('on','emit','R', rec.buf)(
+            (k,f)=>DS.bus.on(k, f, ownerOf(cur)), DS.dispatch, window.R || {});
+          rec.err = null;
+        }catch(e){ rec.err = String((e && e.message) || e); }
+      }
+    }
+    function applyJsRec(rec){
+      if(rec.mode !== 'javascript') return;
+      rec.buf = editor.getValue();
+      runJsRec(rec);
       showStatus();
       showPreviewErr();
     }
@@ -354,18 +387,19 @@ window.TourShell = {
       placeHints();
     }
     function go(i){
+      DS.bus.clearOwner(ownerOf(cur)); // leaving: drop this step's subs
+      DS.hooks = {}; // leaving: drop step-owned publish hooks
       cur = Math.max(0, Math.min(steps.length-1, i));
-      const s = steps[cur];
+      const s = curStep();
       document.getElementById('backBtn').disabled = cur===0;
       document.getElementById('nextBtn').textContent = cur===steps.length-1 ? 'Done ✓' : 'Next →';
       left.innerHTML = s.explainer;
-      // entering a step (re)applies its handler buffer
-      if(s._js !== null){
-        const r = DS.runHandlerCode(s._js);
-        s._err = r.error || null;
-      }
-      editor.setOption('mode', s._file === 'handler.js' ? 'javascript' : 'htmlmixed');
-      editor.setValue(s._file === 'handler.js' ? s._js : s._html);
+      // entering a step (re)applies its JS buffers
+      jsRecs().forEach(runJsRec);
+      const rec = fileRec(s._file) || fileRec('demo.html');
+      s._file = rec.name;
+      editor.setOption('mode', rec.mode);
+      editor.setValue(rec.buf);
       renderTabs();
       showStatus();
       showPreviewErr();
@@ -379,43 +413,48 @@ window.TourShell = {
     document.getElementById('backBtn').onclick = ()=>go(cur-1);
     document.getElementById('nextBtn').onclick = ()=>go(cur+1);
     document.getElementById('resetBtn').onclick = ()=>{
-      const s = steps[cur];
-      s._html = s.code;
-      if(s._js !== null){
-        s._js = (document.getElementById(s.hsrc)?.textContent ?? '').replace(/^\n+|\s+$/g,'');
-        const r = DS.runHandlerCode(s._js);
-        s._err = r.error || null;
-      }else s._err = null;
-      editor.setValue(s._file === 'handler.js' ? s._js : s._html);
+      const s = curStep();
+      s._files.forEach(f=>{
+        f.buf = f.name === 'demo.html' ? s.code : srcOf(f.src);
+        f.err = null;
+      });
+      DS.bus.clearOwner(ownerOf(cur));
+      DS.hooks = {};
+      jsRecs().forEach(runJsRec);
+      const rec = fileRec(s._file);
+      editor.setValue(rec.buf);
       showStatus();
       showPreviewErr();
       renderPreview();
     };
     const fmtBtn = document.getElementById('formatBtn');
     if(fmtBtn) fmtBtn.onclick = ()=>{
+      const rec = fileRec(curStep()._file);
       try{
-        if(steps[cur]._file === 'handler.js'){
+        if(rec.mode === 'javascript'){
           if(typeof beautify === 'function') editor.setValue(beautify(editor.getValue(), {indent_size:2}));
         }else if(typeof html_beautify === 'function'){
           editor.setValue(html_beautify(editor.getValue(), {indent_size:2, wrap_line_length:120, wrap_attributes:'force'}));
         }
       }catch{}
-      if(steps[cur]._file === 'handler.js') applyHandler(); else renderPreview();
+      if(rec.mode === 'javascript'){ rec.buf = editor.getValue(); runJsRec(rec); showStatus(); showPreviewErr(); }
+      else { rec.buf = editor.getValue(); renderPreview(); }
     };
     let deb = null;
     editor.on('change', ()=>{
       clearTimeout(deb);
-      const s = steps[cur];
-      if(s._file === 'handler.js'){
+      const rec = fileRec(curStep()._file);
+      if(rec.mode === 'javascript'){
         deb = setTimeout(()=>{
-          s._js = editor.getValue();
-          applyHandler();
+          rec.buf = editor.getValue();
+          runJsRec(rec);
+          showStatus();
+          showPreviewErr();
         }, 500);
       }else{
-        deb = setTimeout(()=>{ s._html = editor.getValue(); renderPreview(); }, 500);
+        deb = setTimeout(()=>{ rec.buf = editor.getValue(); renderPreview(); }, 500);
       }
     });
-    // html edits must persist per step (js persists via s._js in applyHandler)
     const menuBtn = document.getElementById('menuBtn');
     if(menuBtn) menuBtn.onclick = ()=>{
       document.body.classList.toggle('navhidden');
