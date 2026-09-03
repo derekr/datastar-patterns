@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Datastar Patterns — CQRS: commands in, shared state out</title>
+<script type="module" src="./vendor/datastar.js"></script>
+<link rel="stylesheet" href="./vendor/codemirror/lib/codemirror.css" />
+<link rel="stylesheet" href="./vendor/codemirror/theme/gruvbox-dark.css" />
+<link rel="stylesheet" href="./theme.css" />
+</head>
+<body>
+
+<header class="top">
+  <button id="menuBtn" title="toggle sidebar">☰</button>
+  <a class="logo" href="./index.html"><span class="mark">▦</span> Datastar Patterns</a>
+  <nav class="tabs"><a href="./index.html">Basics</a><a href="./sse.html">SSE</a><a href="./cqrs.html" class="active">CQRS</a></nav>
+  <span class="pill" id="stepPill">Step 1 of 4</span>
+  <span class="spacer"></span>
+  <span class="shim">BroadcastChannel · no server</span>
+</header>
+
+<div class="layout">
+<nav class="side" id="nav"></nav>
+<main id="main">
+  <div class="sessbar">peer <code class="inline" id="peerId">…</code> · <button class="mini" id="botBtn">Simulate peer: off</button> <span class="sig">open a second window for real multiplayer</span></div>
+  <div style="display:none" aria-hidden="true">
+    <div data-on:remote-inc__window="$s9_count = ($s9_count ?? 0) + evt.detail.delta; $s9_by = evt.detail.from"></div>
+    <div data-on:remote-job__window="$s9_job = evt.detail.running; $s9_jobby = evt.detail.from"></div>
+  </div>
+  <div class="step-grid">
+    <div id="stepLeft"></div>
+    <div>
+      <div class="card"><h3>Editor <span class="right"><button class="mini" id="formatBtn">Format</button><button class="mini" id="resetBtn">Reset</button></span></h3>
+        <textarea id="editor"></textarea>
+      </div>
+      <div class="card"><h3>Rendered demo</h3>
+        <div id="preview"></div>
+      </div>
+    </div>
+  </div>
+  <div class="pager"><button class="btn secondary" id="backBtn">← Back</button><button class="btn" id="nextBtn">Next →</button></div>
+  <div class="card" id="inspector">
+    <h3>Signal inspector (live)</h3>
+    <pre id="inspectorPre" data-json-signals="{include: /^s\d_/}"></pre>
+    <footer class="hint">Edit the code — it re-renders as you type. Navigate with <kbd>←</kbd><kbd>→</kbd>. Writes broadcast over BroadcastChannel.</footer>
+  </div>
+</main>
+</div>
+
+<script src="./vendor/js-beautify/beautify-html.js"></script>
+<script src="./vendor/codemirror/lib/codemirror.js"></script>
+<script src="./vendor/codemirror/mode/xml/xml.js"></script>
+<script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="./vendor/codemirror/mode/css/css.js"></script>
+<script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
+<script src="./shared.js"></script>
+<script>
+const STEPS = [
+{ title: "Shared counter", sub: "delta commands, converge",
+  explainer: `<h2>1. Shared counter, no server</h2>
+  <p class="lead">Clicks are <strong>commands</strong> (deltas) broadcast to every window. Each window applies the same deltas to a shared signal — commutative, so all windows converge.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">command</span> (delta + broadcast) → <span class="pe">shared signal</span> (every window applies it).</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Open this page in a second window. Click +1 in either.</span></li>
+    <li><span class="rn">2</span><span>Both counters converge; “last write by” names the clicker.</span></li>
+    <li><span class="rn">3</span><span>Solo? Toggle <strong>Simulate peer</strong> up top.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s9_count="0"
+  data-signals:s9_by="'—'">
+  <p style="font-size:28px">shared: <strong data-text="$s9_count"></strong></p>
+  <p class="sig">last write by <span data-text="$s9_by"></span></p>
+  <button class="btn"
+    data-on:click="DS.localInc(1)">+1 (broadcast)</button>
+</div>`
+},
+{ title: "Shared vs tab-local", sub: "spinner for all, dialog for one",
+  explainer: `<h2>2. Ephemeral: shared vs tab-local</h2>
+  <p class="lead">Two kinds of ephemeral state. The <strong>finish spinner is shared</strong> — whoever clicks, every window spins. The <strong>dialog is tab-local</strong> (<code class="inline">$_</code> never leaves the tab). Display name is a tab preference: stored nowhere, sent nowhere.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">shared ephemeral</span> (broadcast in-flight) vs <span class="pe">tab ephemeral</span> (<code class="inline">$_</code>, broadcast nothing).</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Click Finish in one window — all windows spin ~3s.</span></li>
+    <li><span class="rn">2</span><span>Open the dialog — other windows never know.</span></li>
+    <li><span class="rn">3</span><span>Type a name — it lives and dies in this tab.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s9_job="false"
+  data-signals:s9_jobby="'—'"
+  data-signals:$_dlg="false"
+  data-signals:s9_name="'anon'">
+  <button class="btn"
+    data-on:click="DS.finish()">Finish job (everyone sees it spin)</button>
+  <span data-show="$s9_job"
+    class="delayed"
+    style="display:none"> ⏳ job running… (started by <span data-text="$s9_jobby"></span>)</span>
+  <hr />
+  <button class="btn secondary"
+    data-on:click="$_dlg = !$_dlg">Toggle dialog (this tab only)</button>
+  <div class="dlg"
+    data-show="$_dlg"
+    style="display:none">Tab-local dialog. Other windows never know — <code class="inline">$_</code> signals are never
+    sent.</div>
+  <hr />
+  <label>Display name (this tab only) <input type="text"
+      data-bind:s9_name /></label>
+  <p class="sig">Hello, <strong data-text="$s9_name"></strong> — stored nowhere, sent nowhere.</p>
+</div>`
+},
+{ title: "Cursors & rooms", sub: "presence per audience",
+  explainer: `<h2>3. Cursors &amp; rooms: ephemeral per audience</h2>
+  <p class="lead">Cursors are the purest ephemeral shared state: 3s expiry, never stored, scoped by <strong>room</strong> (tenant/audience). Names are tab preferences stapled onto messages — never state themselves.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">heartbeat + expiry</span> (presence) · <span class="pe">last-position-wins</span> (cursors) · room filters both.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Two windows, same room — move the mouse, see the caret.</span></li>
+    <li><span class="rn">2</span><span>Switch one window's room — it vanishes from the other.</span></li>
+    <li><span class="rn">3</span><span>Close a window — presence expires within seconds.</span></li>
+  </ul>`,
+  code: `<div class="demo">
+  <label>Room <select id="s9_roomSel">
+      <option>lobby</option>
+      <option>skunkworks</option>
+    </select></label>
+  <label>Display name <input type="text"
+      id="s9_name"
+      placeholder="anon" /></label>
+  <div id="s9_roster"
+    style="margin:10px 0"></div>
+  <div id="s9_stage">
+    <span class="stage-hint">move your mouse here — same-room windows see your cursor</span>
+  </div>
+  <p class="sig">Cursors: ephemeral, 3s expiry, never stored. Names: tab preferences. Room: who sees what.</p>
+</div>`
+},
+{ title: "Fat morph region", sub: "whole HTML blob per update",
+  explainer: `<h2>4. Fat morph: whole region per update</h2>
+  <p class="lead">Step 1 synced fine-grained signals; here the “server” renders the whole leaderboard as one HTML blob per update (last-writer-wins). Same broadcast, opposite granularity.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals</span> (small state) vs <span class="pe">fat morph</span> (whole regions). Pick per update, not per app.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>+1 in either window — the whole table swaps at once.</span></li>
+    <li><span class="rn">2</span><span>Version tag shows last-writer-wins in action.</span></li>
+    <li><span class="rn">3</span><span>Display-only region: no inputs inside to clobber.</span></li>
+  </ul>`,
+  code: `<div class="demo">
+  <button class="btn"
+    data-on:click="DS.boardAdd()">+1 me</button>
+  <div id="s9_board"
+    style="margin-top:10px"><em>empty — score something</em></div>
+</div>`
+},
+];
+TourShell.init({steps: STEPS, hashPrefix: 'cqrs-'});
+
+// ---------------- multiplayer wiring (page-level, not editor code) ----------------
+document.getElementById('peerId').textContent = DS.bus.id;
+
+DS.localInc = (d=1)=>{
+  DS.dispatch('remote-inc', {delta:d, from:'you'});
+  DS.bus.send({kind:'inc', delta:d});
+};
+DS.bus.on('inc', m=>DS.dispatch('remote-inc', {delta:m.delta, from:m.name || m.from}));
+
+DS.finish = ()=>{
+  DS.dispatch('remote-job', {running:true, from:'you'});
+  DS.bus.send({kind:'job', running:true, from:myName()});
+  clearTimeout(DS._jt);
+  DS._jt = setTimeout(()=>{
+    DS.dispatch('remote-job', {running:false, from:'you'});
+    DS.bus.send({kind:'job', running:false, from:myName()});
+  }, 3000);
+};
+DS.bus.on('job', m=>DS.dispatch('remote-job', {running:m.running, from:m.from}));
+
+// ---- presence + roster ----
+const peers = new Map();
+const COLORS = ['#b8bb26','#fe8019','#d3869b','#fabd2f','#8ec07c','#83a598'];
+const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
+const roomSel = ()=>{ const el=document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; };
+const myName = ()=>{ const el=document.getElementById('s9_name'); return (el && el.value) || 'anon'; };
+function renderRoster(){
+  const mount = document.getElementById('s9_roster');
+  if(!mount) return;
+  const now = Date.now(), room = roomSel();
+  const rows = [...peers.entries()].filter(([id,p])=>now-p.ts < 6000 && p.room === room);
+  mount.innerHTML = rows.length
+    ? rows.map(([id,p])=>`<span class="sig" style="margin-right:12px"><span class="dot on" style="background:${colorFor(id)}"></span>${DS.esc(p.name)}${id===DS.bus.id?' (you)':''}</span>`).join('')
+    : `<span class="sig">nobody here (yet)</span>`;
+}
+function heartbeat(){
+  DS.bus.send({kind:'presence', room:roomSel(), name:myName()});
+  peers.set(DS.bus.id, {name:myName(), room:roomSel(), ts:Date.now()});
+  renderRoster();
+}
+DS.bus.on('presence', m=>{ peers.set(m.from, {name:m.name||m.from, room:m.room||'lobby', ts:Date.now()}); renderRoster(); });
+setInterval(heartbeat, 2000);
+heartbeat();
+
+// ---- cursors ----
+let lastCur = 0;
+document.addEventListener('mousemove', e=>{
+  const stage = e.target.closest && e.target.closest('#s9_stage');
+  if(!stage) return;
+  const now = Date.now();
+  if(now - lastCur < 60) return;
+  lastCur = now;
+  const r = stage.getBoundingClientRect();
+  DS.bus.send({kind:'cursor', x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height, room:roomSel(), name:myName()});
+});
+function renderCursor(m){
+  if(m.room !== roomSel()) return;
+  const stage = document.getElementById('s9_stage');
+  if(!stage) return;
+  let c = stage.querySelector(`[data-peer="${m.from}"]`);
+  if(!c){
+    c = document.createElement('div');
+    c.className = 'caret';
+    c.dataset.peer = m.from;
+    c.innerHTML = `<div class="cur"></div><div class="tag"></div>`;
+    stage.appendChild(c);
+  }
+  const col = colorFor(m.from);
+  c.style.left = (m.x*100)+'%';
+  c.style.top = (m.y*100)+'%';
+  c.querySelector('.cur').style.background = col;
+  const tag = c.querySelector('.tag');
+  tag.textContent = m.name || m.from;
+  tag.style.background = col;
+  c.dataset.ts = Date.now();
+}
+DS.bus.on('cursor', renderCursor);
+setInterval(()=>{
+  const stage = document.getElementById('s9_stage');
+  if(!stage) return;
+  const now = Date.now();
+  stage.querySelectorAll('.caret').forEach(c=>{ if(now - (+c.dataset.ts || 0) > 3000) c.remove(); });
+}, 1000);
+
+// ---- fat-morph board ----
+let boardVer = 0;
+const board = {};
+DS.boardRender = ()=>{
+  const mount = document.getElementById('s9_board');
+  const rows = Object.entries(board).sort((a,b)=>b[1]-a[1]);
+  const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table><p class="sig">v${boardVer} · last-writer-wins</p>`;
+  if(mount) mount.innerHTML = html;
+  return html;
+};
+DS.boardAdd = (name)=>{
+  const n = name || myName();
+  board[n] = (board[n] ?? 0) + 1;
+  boardVer++;
+  const html = DS.boardRender();
+  DS.bus.send({kind:'board', html, v:boardVer});
+};
+DS.bus.on('board', m=>{
+  if(m.v > boardVer){
+    boardVer = m.v;
+    const mount = document.getElementById('s9_board');
+    if(mount) mount.innerHTML = m.html;
+  }
+});
+
+// ---- simulate-peer bot ----
+let botTimer = null;
+const botBtn = document.getElementById('botBtn');
+botBtn.onclick = ()=>{
+  if(botTimer){ clearInterval(botTimer); botTimer = null; botBtn.textContent = 'Simulate peer: off'; botBtn.classList.remove('on'); return; }
+  botBtn.textContent = 'Simulate peer: on'; botBtn.classList.add('on');
+  let bx = 0.2, by = 0.3;
+  botTimer = setInterval(()=>{
+    DS.dispatch('remote-inc', {delta:1, from:'bot 🤖'});
+    peers.set('bot', {name:'bot 🤖', room:roomSel(), ts:Date.now()});
+    renderRoster();
+    const stage = document.getElementById('s9_stage');
+    if(stage){
+      bx = Math.min(0.95, Math.max(0.05, bx + (Math.random()-0.5)*0.2));
+      by = Math.min(0.9, Math.max(0.1, by + (Math.random()-0.5)*0.2));
+      renderCursor({from:'bot', x:bx, y:by, room:roomSel(), name:'bot 🤖'});
+    }
+    if(document.getElementById('s9_board') && Math.random() < 0.5) DS.boardAdd('bot 🤖');
+  }, 2500);
+};
+</script>
+</body>
+</html>

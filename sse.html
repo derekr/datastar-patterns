@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Datastar Patterns — SSE: one mental model for every update</title>
+<script type="module" src="./vendor/datastar.js"></script>
+<link rel="stylesheet" href="./vendor/codemirror/lib/codemirror.css" />
+<link rel="stylesheet" href="./vendor/codemirror/theme/gruvbox-dark.css" />
+<link rel="stylesheet" href="./theme.css" />
+</head>
+<body>
+
+<header class="top">
+  <button id="menuBtn" title="toggle sidebar">☰</button>
+  <a class="logo" href="./index.html"><span class="mark">▦</span> Datastar Patterns</a>
+  <nav class="tabs"><a href="./index.html">Basics</a><a href="./sse.html" class="active">SSE</a><a href="./cqrs.html">CQRS</a></nav>
+  <span class="pill" id="stepPill">Step 1 of 5</span>
+  <span class="spacer"></span>
+  <span class="shim">fetch-shim backend · no server</span>
+</header>
+
+<div class="layout">
+<nav class="side" id="nav"></nav>
+<main id="main">
+  <div class="step-grid">
+    <div id="stepLeft"></div>
+    <div>
+      <div class="card"><h3>Editor <span class="right"><button class="mini" id="formatBtn">Format</button><button class="mini" id="resetBtn">Reset</button></span></h3>
+        <textarea id="editor"></textarea>
+      </div>
+      <div class="card"><h3>Rendered demo</h3>
+        <div id="preview"></div>
+      </div>
+    </div>
+  </div>
+  <div class="pager"><button class="btn secondary" id="backBtn">← Back</button><button class="btn" id="nextBtn">Next →</button></div>
+  <div class="card" id="inspector">
+    <h3>Signal inspector (live)</h3>
+    <pre id="inspectorPre" data-json-signals="{include: /^s\d_/}"></pre>
+    <footer class="hint">Edit the code — it re-renders as you type. Navigate with <kbd>←</kbd><kbd>→</kbd>. All <code class="inline">/api/*</code> routes are a fetch shim.</footer>
+  </div>
+</main>
+</div>
+
+<script src="./vendor/js-beautify/beautify-html.js"></script>
+<script src="./vendor/codemirror/lib/codemirror.js"></script>
+<script src="./vendor/codemirror/mode/xml/xml.js"></script>
+<script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="./vendor/codemirror/mode/css/css.js"></script>
+<script src="./vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
+<script src="./shared.js"></script>
+<script>
+const STEPS = [
+{ title: "SSE is just a format", sub: "text/event-stream ≈ text/html",
+  explainer: `<h2>1. SSE is just a response format</h2>
+  <p class="lead">Not a realtime protocol — a text formatting of the response body (<code class="inline">event:</code> / <code class="inline">data:</code> / blank line), served as <code class="inline">text/event-stream</code>. One request → 0..n messages, then close. Any method works with <code class="inline">fetch</code> (only <code class="inline">EventSource</code> is GET-only).</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div>initial loads: <span class="pd">text/html</span> · everything else: <span class="pe">text/event-stream</span>. One mental model.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Click Ping — one request, one event, connection closes.</span></li>
+    <li><span class="rn">2</span><span>The raw block below is literally what crossed the wire.</span></li>
+    <li><span class="rn">3</span><span>A blank line ends the message. That's the whole spec.</span></li>
+  </ul>`,
+  code: `<div class="demo">
+  <button class="btn"
+    data-on:click="@get('/api/ping')">Ping</button>
+  <div id="s8_out"
+    style="margin-top:8px"><em>pong lands here</em></div>
+  <pre class="rawstream">event: datastar-patch-elements
+data: selector #s8_out
+data: mode inner
+data: elements &lt;strong&gt;pong …&lt;/strong&gt;
+(blank line ends the message)</pre>
+</div>`
+},
+{ title: "Live validation", sub: "one endpoint, validated once",
+  explainer: `<h2>2. Live validation, one endpoint</h2>
+  <p class="lead">Same <code class="inline">/api/contact</code> validates while typing <em>and</em> will validate on submit (next step) — validation logic written once, guaranteed identical.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">debounced @post</span> (signals) → <span class="pe">per-field error patches</span>. No validate-vs-submit drift.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Type a bad email — errors patch in, no submit needed.</span></li>
+    <li><span class="rn">2</span><span>Fix it — the patch clears to “✓ looks good”.</span></li>
+    <li><span class="rn">3</span><span>Message needs ≥ 10 chars. Try short, then long.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s8_email="'ada@'"
+  data-signals:s8_msg="'hi'">
+  <label>Email <input type="text"
+      data-bind:s8_email
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <label style="display:block;margin:8px 0">Message <input type="text"
+      data-bind:s8_msg
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <div id="s8_errors"><span class="ok-line">…</span></div>
+</div>`
+},
+{ title: "Staged submit", sub: "progress as it happens",
+  explainer: `<h2>3. Staged submit: progress as it happens</h2>
+  <p class="lead">One submit streams <code class="inline">Validating… → Saving… → Email… → Done</code> — each stage patches the moment it lands. No all-or-nothing wait, no polling, no second endpoint.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">one @post</span> → <span class="pe">n patches over time</span> → close. Slow steps narrate themselves.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Fill a valid email + message, hit Submit.</span></li>
+    <li><span class="rn">2</span><span>Watch the status narrate each stage.</span></li>
+    <li><span class="rn">3</span><span>Invalid input ends the stream early at the error stage.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s8_email="'ada@local'"
+  data-signals:s8_msg="'hello there'">
+  <label>Email <input type="text"
+      data-bind:s8_email
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <label style="display:block;margin:8px 0">Message <input type="text"
+      data-bind:s8_msg
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <div id="s8_errors"><span class="ok-line">…</span></div>
+  <button class="btn"
+    data-on:click="@post('/api/contact-submit')">Submit</button>
+  <p class="sig">status: <span id="s8_status">idle</span></p>
+  <div id="s8_saved"></div>
+</div>`
+},
+{ title: "Partial failure", sub: "each stage owns its outcome",
+  explainer: `<h2>4. Partial failure without the try/catch maze</h2>
+  <p class="lead">Saved ✓ but email ✗ — is that success? With SSE each stage reports its own outcome into template state. No leaking “success-ish” branches through the handler.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">per-stage patch</span> → <span class="pe">honest mixed states</span> (“saved, email pending”).</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>This form prefills a doomed email — hit Submit.</span></li>
+    <li><span class="rn">2</span><span>Saved lands, then the email stage fails independently.</span></li>
+    <li><span class="rn">3</span><span>Fix the email, resubmit — clean run to “All done”.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s8_email="'ops@fail.test'"
+  data-signals:s8_msg="'hello there'">
+  <label>Email <input type="text"
+      data-bind:s8_email
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <label style="display:block;margin:8px 0">Message <input type="text"
+      data-bind:s8_msg
+      data-on:input__debounce.250ms="@post('/api/contact')" /></label>
+  <div id="s8_errors"><span class="ok-line">…</span></div>
+  <button class="btn"
+    data-on:click="@post('/api/contact-submit')">Submit</button>
+  <p class="sig">status: <span id="s8_status">idle</span></p>
+  <div id="s8_saved"></div>
+</div>`
+},
+{ title: "Drop & reconnect", sub: "snapshot, no replay",
+  explainer: `<h2>5. Drop &amp; reconnect: snapshot, no replay</h2>
+  <p class="lead">Kill the stream and the page goes stale — honestly, with a banner. Reconnect doesn't replay missed events: it fetches one <strong>full snapshot</strong> of current state.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">close → stale banner</span> → <span class="pe">reconnect = full state patch</span>. No last-event-id bookkeeping.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Resume the feed — ticks climb every 1.5s.</span></li>
+    <li><span class="rn">2</span><span>Drop it — banner goes red, ticks freeze (server keeps counting).</span></li>
+    <li><span class="rn">3</span><span>Reconnect — snapshot jumps straight to the current tick.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s8_tick="0"
+  data-signals:s8_online="true">
+  <button class="btn"
+    data-on:click="@get('/api/ticks')">Resume live feed</button>
+  <button class="btn secondary"
+    data-on:click="@post('/api/drop')">Drop connection</button>
+  <button class="btn secondary"
+    data-on:click="@post('/api/reconnect')">Reconnect (snapshot)</button>
+  <p>tick: <strong data-text="$s8_tick"></strong> <span class="dot"
+      data-class:on="$s8_online"
+      data-class:off="!$s8_online"></span></p>
+  <div id="s8_conn">
+    <div class="banner okb">● live</div>
+  </div>
+</div>`
+},
+];
+TourShell.init({steps: STEPS, hashPrefix: 'sse-'});
+</script>
+</body>
+</html>
