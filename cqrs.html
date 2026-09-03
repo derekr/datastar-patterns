@@ -286,12 +286,16 @@ Commands.inc = (d = 1) => {
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// react to the bus event -> re-read the store -> patch.
-// The subscribe IS the read path; the patch below renders what we read.
+// READ PATH — one handler, two halves:
+//   1. below: on every store change, re-read and emit a render event...
 Store.subscribe((cmd) => {
   const s = Store.get();
   emit('render-count', { count: s.count, by: cmd.by });
 });
+//   2. ...which this hidden div turns into signal patches.
+//      Mounted once (per-event mounting would stack duplicate
+//      listeners); the event is the bridge because plain JS
+//      can't write $signals — same as fakelookup in Basics-5.
 patch(`<div data-on:render-count__window="$s9_count = evt.detail.count; $s9_by = evt.detail.by === Store.id ? evt.detail.by + ' (you)' : evt.detail.by"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
