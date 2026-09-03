@@ -69,6 +69,21 @@ const H = {
   wait: ms=>new Promise(r=>setTimeout(r,ms)),
   stream: setup=>streamResp(setup),
   srv: SRV,
+  // read Datastar signals off a real Request (GET query or JSON body)
+  signals: async (req)=>{
+    try{
+      if(req.method !== 'GET' && req.method !== 'HEAD'){
+        const t = await req.text();
+        if(t) return JSON.parse(t);
+      }
+    }catch{}
+    try{
+      const u = new URL(req.url);
+      const d = u.searchParams.get('datastar');
+      return d ? JSON.parse(d) : {};
+    }catch{ return {}; }
+  },
+  text: s=>new Response(s,{status:200,headers:{'Content-Type':'text/event-stream'}}),
 };
 DS.H = H;
 
@@ -232,7 +247,10 @@ DS.defineColorPicker = ()=>{
 
 // ---------------- tour shell ----------------
 window.TourShell = {
-  init({steps, hashPrefix='tour-'}){
+  init({steps, hashPrefix='tour-', backend=null}){
+    // backend applies handler.js tab code. Default is the in-page registry
+    // (fetch shim); pages may inject an MSW-backed one instead.
+    backend = backend || {apply: code=>DS.runHandlerCode(code), resetAll(){}};
     const nav = document.getElementById('nav');
     const pill = document.getElementById('stepPill');
     const left = document.getElementById('stepLeft');
@@ -360,7 +378,8 @@ window.TourShell = {
     }
     function runJsRec(rec){
       if(rec.kind === 'endpoint'){
-        const r = DS.runHandlerCode(rec.buf);
+        backend.resetAll(); // registry: noop (Map.set overwrites); MSW: clear stale worker.use()
+        const r = backend.apply(rec.buf);
         rec.err = r.error || null;
       }else if(rec.kind === 'sync-pub'){
         try{
@@ -484,5 +503,5 @@ window.TourShell = {
   }
 };
 
-DS.installShim();
+if(!window.DS_NO_SHIM) DS.installShim();
 })();
