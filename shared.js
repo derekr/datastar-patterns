@@ -265,7 +265,7 @@ window.TourShell = {
       s._files = [{name:'demo.html', mode:'htmlmixed', buf:s.code, err:null}];
       if(s.hsrc) s._files.push({name:'handler.js', kind:'endpoint', mode:'javascript', buf:srcOf(s.hsrc), src:s.hsrc, err:null});
       if(s.pub) s._files.push({name:'handler.js', kind:'sync-pub', mode:'javascript', buf:srcOf(s.pub), src:s.pub, err:null});
-      if(s.sub) s._files.push({name:'sub.js', kind:'sync-sub', mode:'javascript', buf:srcOf(s.sub), src:s.sub, err:null});
+      if(s.subscribe) s._files.push({name:'sub.js', kind:'sync-sub', mode:'javascript', buf:srcOf(s.subscribe), src:s.subscribe, err:null});
       s._file = 'demo.html';
     });
     const curStep = ()=>steps[cur];

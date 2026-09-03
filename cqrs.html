@@ -56,14 +56,13 @@
 <script>
 const STEPS = [
 { title: "Shared counter", sub: "delta commands, converge",
-  pub: "cqrs1-pub", sub: "cqrs1-sub",
   pub: "cqrs1-pub", subscribe: "cqrs1-sub",
   explainer: `<h2>1. Shared counter, no server</h2>
   <p class="lead">Clicks are <strong>commands</strong> (deltas) broadcast to every window. Each window applies the same deltas to a shared signal — commutative, so all windows converge.</p>
-  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">command</span> (delta + broadcast) → <span class="pe">shared signal</span> (every window applies it).</div></div>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">command</span> → store → <span class="pe">signal</span> (view patches FROM the store, never from the event).</div></div>
   <ul class="how">
     <li><span class="rn">1</span><span>Open this page in a second window. Click +1 in either.</span></li>
-    <li><span class="rn">2</span><span>Both counters converge; “last write by” names the clicker.</span></li>
+    <li><span class="rn">2</span><span>Each window applies deltas to its own store replica, then patches — all converge.</span></li>
     <li><span class="rn">3</span><span><code class="inline">handler.js</code> publishes, <code class="inline">sub.js</code> subscribes — break either.</span></li>
   </ul>`,
   code: `<div class="demo"
@@ -76,7 +75,6 @@ const STEPS = [
 </div>`
 },
 { title: "Shared vs tab-local", sub: "spinner for all, dialog for one",
-  pub: "cqrs2-pub", sub: "cqrs2-sub",
   pub: "cqrs2-pub", subscribe: "cqrs2-sub",
   explainer: `<h2>2. Ephemeral: shared vs tab-local</h2>
   <p class="lead">Two kinds of ephemeral state. The <strong>finish spinner is shared</strong> — whoever clicks, every window spins. The <strong>dialog is tab-local</strong> (<code class="inline">$_</code> never leaves the tab). Display name is a tab preference: stored nowhere, sent nowhere.</p>
@@ -110,7 +108,6 @@ const STEPS = [
 </div>`
 },
 { title: "Cursors & rooms", sub: "presence per audience",
-  pub: "cqrs3-pub", sub: "cqrs3-sub",
   pub: "cqrs3-pub", subscribe: "cqrs3-sub",
   explainer: `<h2>3. Cursors &amp; rooms: ephemeral per audience</h2>
   <p class="lead">Cursors are the purest ephemeral shared state: 3s expiry, never stored, scoped by <strong>room</strong> (tenant/audience). Names are tab preferences stapled onto messages — never state themselves.</p>
@@ -137,7 +134,6 @@ const STEPS = [
 </div>`
 },
 { title: "Fat morph region", sub: "whole HTML blob per update",
-  pub: "cqrs4-pub", sub: "cqrs4-sub",
   pub: "cqrs4-pub", subscribe: "cqrs4-sub",
   explainer: `<h2>4. Fat morph: whole region per update</h2>
   <p class="lead">Step 1 synced fine-grained signals; here the “server” renders the whole leaderboard as one HTML blob per update (last-writer-wins). Same broadcast, opposite granularity.</p>
@@ -167,6 +163,7 @@ window.R = (()=>{
   const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
   const R = {
     peers, board: {}, boardVer: 0, colorFor,
+    store: {count: 0}, // step-1 replica: events mutate the store, views patch FROM it
     room(){ const el = document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; },
     me(){ const el = document.getElementById('s9_name'); return (el && el.value) || 'anon'; },
     seen(id, p){ peers.set(id, {...p, ts:Date.now()}); R.renderRoster(); },
@@ -238,7 +235,8 @@ botBtn.onclick = ()=>{
   botBtn.textContent = 'Simulate peer: on'; botBtn.classList.add('on');
   let bx = 0.2, by = 0.3;
   botTimer = setInterval(()=>{
-    DS.dispatch('remote-inc', {delta:1, from:'bot 🤖'});
+    R.store.count += 1;
+    DS.dispatch('remote-count', {from:'bot 🤖'});
     window.R.seen('bot', {name:'bot 🤖', room:window.R.room()});
     const stage = document.getElementById('s9_stage');
     if(stage){
@@ -252,22 +250,24 @@ botBtn.onclick = ()=>{
 </script>
 
 <script type="text/plain" id="cqrs1-pub">
-// publish side: delta command, applied locally + broadcast.
-// Every window (including this one) applies the same delta,
-// so all counters converge.
+// publish side: write the store first, then notify.
+// The delta rides the event (BroadcastChannel gives us no server
+// to pull from); every replica applies it to ITS store below.
 DS.localInc = (d = 1) => {
-  emit('remote-inc', { delta: d, from: 'you' });
+  R.store.count += d;
+  emit('remote-count', { from: 'you' });
   bus.send({ kind: 'inc', delta: d });
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// subscribe: remote deltas in...
+// subscribe: remote deltas mutate this window's store...
 on('inc', (m) => {
-  emit('remote-inc', { delta: m.delta, from: m.name || m.from });
+  R.store.count += m.delta;
+  emit('remote-count', { from: m.name || m.from });
 });
 
-// ...patching: events into signals (mounted hidden in-page).
-patch(`<div data-on:remote-inc__window="$s9_count = ($s9_count ?? 0) + evt.detail.delta; $s9_by = evt.detail.from"></div>`);
+// ...patching: read the store, then patch the view.
+patch(`<div data-on:remote-count__window="$s9_count = R.store.count; $s9_by = evt.detail.from"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
 // publish side: a ~3s shared job. Whoever clicks, every window spins.
