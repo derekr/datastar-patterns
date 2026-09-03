@@ -322,6 +322,8 @@ async function ensureWorker() {
 try {
   // gate everything until the worker can actually intercept.
   const state = await ensureWorker();
+  const shimLabel = document.querySelector('header .shim');
+  if(shimLabel) shimLabel.textContent = 'MSW · ' + (navigator.serviceWorker.controller ? 'worker ready' : 'UNCONTROLLED');
   if(state !== 'ready'){
     const main = document.getElementById('main');
     const div = document.createElement('div');
