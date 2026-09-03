@@ -137,15 +137,15 @@ const STEPS = [
   <p class="sig">Cursors: ephemeral, 3s expiry, never stored. Names: tab preferences. Room: who sees what.</p>
 </div>`
 },
-{ title: "Fat morph region", sub: "whole HTML blob per update",
+{ title: "Fat morph region", sub: "render locally, sync deltas",
   pub: "cqrs4-pub", subscribe: "cqrs4-sub",
   explainer: `<h2>4. Fat morph: whole region per update</h2>
-  <p class="lead">Step 1 synced fine-grained signals; here the “server” renders the whole leaderboard as one HTML blob per update (last-writer-wins). Same broadcast, opposite granularity.</p>
+  <p class="lead">Step 1 synced fine-grained signals; here each window re-renders the whole leaderboard region per update — but the bus still carries only deltas. Same broadcast, opposite render granularity.</p>
   <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">signals</span> (small state) vs <span class="pe">fat morph</span> (whole regions). Pick per update, not per app.</div></div>
   <ul class="how">
-    <li><span class="rn">1</span><span>+1 in either window — the whole table swaps at once.</span></li>
-    <li><span class="rn">2</span><span>Version tag shows last-writer-wins in action.</span></li>
-    <li><span class="rn">3</span><span>Publish renders + sends, subscribe swaps — both tabs live.</span></li>
+    <li><span class="rn">1</span><span>+1 in either window — each side re-renders its own table.</span></li>
+    <li><span class="rn">2</span><span>Both sides render through one shared function, fed by local state.</span></li>
+    <li><span class="rn">3</span><span>Bus carries deltas; rendering is one shared function — both tabs live.</span></li>
   </ul>`,
   code: `<div class="demo">
   <button class="btn"
@@ -166,7 +166,7 @@ window.R = (()=>{
   const COLORS = ['#b8bb26','#fe8019','#d3869b','#fabd2f','#8ec07c','#83a598'];
   const colorFor = id=>{ let h=0; for(const c of String(id)) h=(h*31+c.charCodeAt(0))>>>0; return COLORS[h%COLORS.length]; };
   const R = {
-    peers, board: {}, boardVer: 0, colorFor,
+    peers, board: {}, colorFor,
     room(){ const el = document.getElementById('s9_roomSel'); return el ? el.value : 'lobby'; },
     me(){ const el = document.getElementById('s9_name'); return (el && el.value) || 'anon'; },
     seen(id, p){ peers.set(id, {...p, ts:Date.now()}); R.renderRoster(); },
@@ -208,7 +208,7 @@ window.R = (()=>{
     },
     boardRender(){
       const rows = Object.entries(R.board).sort((a,b)=>b[1]-a[1]);
-      const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table><p class="sig">v${R.boardVer} · last-writer-wins</p>`;
+      const html = `<table class="results"><tr><th>Who</th><th>Pts</th></tr>${rows.map(([n,s])=>`<tr><td>${DS.esc(n)}</td><td>${s}</td></tr>`).join('')}</table>`;
       const mount = document.getElementById('s9_board');
       if(mount) mount.innerHTML = html;
       return html;
@@ -362,25 +362,25 @@ on('cursor', (m) => {
 });
 </script>
 <script type="text/plain" id="cqrs4-pub">
-// publish side: score locally, render, broadcast the whole blob.
+// publish: mutate local state, announce the change, broadcast the delta.
+// No HTML crosses the bus — only data. Rendering happens below.
 DS.boardAdd = (name) => {
   const n = name || R.me();
   R.board[n] = (R.board[n] ?? 0) + 1;
-  R.boardVer++;
-  const html = R.boardRender();
-  bus.send({ kind: 'board', html, v: R.boardVer });
+  emit('board-changed', {});
+  bus.send({ kind: 'board-add', name: n });
 };
 </script>
 <script type="text/plain" id="cqrs4-sub">
-// subscribe side: last-writer-wins whole-blob swap.
-// Display-only region: no inputs inside to clobber.
-on('board', (m) => {
-  if (m.v > R.boardVer) {
-    R.boardVer = m.v;
-    const mount = document.getElementById('s9_board');
-    if (mount) mount.innerHTML = m.html;
-  }
+// subscribe: remote deltas mutate the local replica...
+on('board-add', (m) => {
+  R.board[m.name] = (R.board[m.name] ?? 0) + 1;
+  emit('board-changed', {});
 });
+
+// ...and every change — local or remote — re-renders this region
+// from local state, through one shared function.
+patch(`<div data-on:board-changed__window="R.boardRender()"></div>`);
 </script>
 
 </body>
