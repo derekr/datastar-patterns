@@ -174,7 +174,9 @@ DS.bus = (()=>{
   return api;
 })();
 // Route a "server event" into Datastar via hidden data-on listeners.
-DS.dispatch = (name, detail)=>{ document.dispatchEvent(new CustomEvent(name, {detail})); };
+// bubbles:true is load-bearing: document → window propagation is how
+// data-on:*__window listeners receive it (cf. fakelookup in Basics-5).
+DS.dispatch = (name, detail)=>{ document.dispatchEvent(new CustomEvent(name, {detail, bubbles:true})); };
 DS.esc = esc;
 
 // ---------------- web component ----------------
