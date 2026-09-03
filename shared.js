@@ -369,9 +369,13 @@ window.TourShell = {
         }catch(e){ rec.err = String((e && e.message) || e); }
       }else if(rec.kind === 'sync-sub'){
         DS.bus.clearOwner(ownerOf(cur));
+        const mount = document.getElementById('submount');
+        if(mount) mount.innerHTML = '';
         try{
-          new Function('on','emit','R', rec.buf)(
-            (k,f)=>DS.bus.on(k, f, ownerOf(cur)), DS.dispatch, window.R || {});
+          new Function('on','emit','patch','R', rec.buf)(
+            (k,f)=>DS.bus.on(k, f, ownerOf(cur)), DS.dispatch,
+            html=>{ const m = document.getElementById('submount'); if(m) m.insertAdjacentHTML('beforeend', html); },
+            window.R || {});
           rec.err = null;
         }catch(e){ rec.err = String((e && e.message) || e); }
       }
@@ -391,6 +395,8 @@ window.TourShell = {
     function go(i){
       DS.bus.clearOwner(ownerOf(cur)); // leaving: drop this step's subs
       DS.hooks = {}; // leaving: drop step-owned publish hooks
+      const mount = document.getElementById('submount'); // leaving: unmount patch listeners
+      if(mount) mount.innerHTML = '';
       cur = Math.max(0, Math.min(steps.length-1, i));
       const s = curStep();
       document.getElementById('backBtn').disabled = cur===0;

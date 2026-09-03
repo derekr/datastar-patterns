@@ -24,10 +24,7 @@
 <nav class="side" id="nav"></nav>
 <main id="main">
   <div class="sessbar">peer <code class="inline" id="peerId">…</code> · <button class="mini" id="botBtn">Simulate peer: off</button> <span class="sig">open a second window for real multiplayer</span></div>
-  <div style="display:none" aria-hidden="true">
-    <div data-on:remote-inc__window="$s9_count = ($s9_count ?? 0) + evt.detail.delta; $s9_by = evt.detail.from"></div>
-    <div data-on:remote-job__window="$s9_job = evt.detail.running; $s9_jobby = evt.detail.from"></div>
-  </div>
+  <div id="submount" style="display:none" aria-hidden="true"></div>
   <div class="step-grid">
     <div id="stepLeft"></div>
     <div>
@@ -264,11 +261,13 @@ DS.localInc = (d = 1) => {
 };
 </script>
 <script type="text/plain" id="cqrs1-sub">
-// subscribe side: remote deltas land here.
-// Static listener in page: $s9_count += evt.detail.delta.
+// subscribe: remote deltas in...
 on('inc', (m) => {
   emit('remote-inc', { delta: m.delta, from: m.name || m.from });
 });
+
+// ...patching: events into signals (mounted hidden in-page).
+patch(`<div data-on:remote-inc__window="$s9_count = ($s9_count ?? 0) + evt.detail.delta; $s9_by = evt.detail.from"></div>`);
 </script>
 <script type="text/plain" id="cqrs2-pub">
 // publish side: a ~3s shared job. Whoever clicks, every window spins.
@@ -284,10 +283,11 @@ DS.finish = () => {
 </script>
 <script type="text/plain" id="cqrs2-sub">
 // subscribe side: remote job state lands here.
-// Static listener in page: $s9_job = evt.detail.running.
+// Patching mounted hidden in-page (was static page HTML).
 on('job', (m) => {
   emit('remote-job', { running: m.running, from: m.from });
 });
+patch(`<div data-on:remote-job__window="$s9_job = evt.detail.running; $s9_jobby = evt.detail.from"></div>`);
 </script>
 <script type="text/plain" id="cqrs3-pub">
 // publish side: the global drivers below call these hooks.
