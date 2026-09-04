@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Datastar Patterns — about: the browser fullstack kit</title>
+<link rel="stylesheet" href="./theme.css" />
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 26px 28px 60px; }
+  main h2 { font-size: 22px; margin: 34px 0 10px; }
+  main h2:first-child { margin-top: 6px; }
+  main p, main li { font-size: 14.5px; line-height: 1.7; color: var(--muted); }
+  main p strong, main li strong { color: var(--ink); }
+  table.stack { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.stack td, table.stack th { border-bottom: 1px solid var(--line); padding: 9px 10px; text-align: left; vertical-align: top; }
+  table.stack th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+  table.stack td:first-child { font-family: ui-monospace, monospace; color: var(--green); white-space: nowrap; }
+  table.stack td:nth-child(2) { font-family: ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; }
+  main a { color: var(--green); }
+  .sketch { border: 1px dashed #504945; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="logo" href="./index.html"><span class="mark">▦</span> Datastar Patterns</a>
+  <nav class="tabs"><a href="./index.html">Basics</a><a href="./sse.html">SSE</a><a href="./cqrs.html">CQRS</a><a href="./about.html" class="active">About</a></nav>
+  <span class="spacer"></span>
+  <span class="shim">how this site fakes a backend</span>
+</header>
+
+<main>
+  <h2>About: a fullstack demo with no stack</h2>
+  <p>Every interactive demo on this site runs against a backend that doesn't
+  exist. There is no server process, no database, no deploy — just static
+  files. The pages implement the <strong>backend half of Datastar patterns
+  in the browser</strong> (fetch interception, SSE streams, collections,
+  cross-tab sync) so each pattern can be read, edited, and broken live.
+  Everything below is vendored under <code class="inline">vendor/</code>;
+  the site builds with nothing (<code class="inline">python3 -m http.server</code>)
+  and deploys as static files.</p>
+
+  <h2>The kit</h2>
+  <table class="stack">
+    <tr><th>Tool</th><th>Version / path</th><th>Role on this site</th></tr>
+    <tr><td>Datastar</td><td>v1.0.3 · vendor/datastar.js</td><td>The subject itself: hypermedia UI — backend patches elements/signals over SSE, frontend reactivity via <code class="inline">data-*</code>.</td></tr>
+    <tr><td>MSW</td><td>2.15.0 · vendor/msw/ + /mockServiceWorker.js</td><td>Real fetch interception via Service Worker on the SSE page: requests show up in devtools, streams arrive as genuine <code class="inline">text/event-stream</code> responses.</td></tr>
+    <tr><td>fetch-shim registry</td><td>shared.js (<code class="inline">DS.handle</code>)</td><td>The pre-MSW approach, kept on Basics/CQRS: same declare-handlers-per-endpoint shape, answered in-page. Handler tabs compile to it.</td></tr>
+    <tr><td>@mswjs/data</td><td>v1.1.8 ex-GitHub · vendor/msw-data/</td><td>Real models for the CQRS board: schema-checked <code class="inline">scores</code> collection, ops, change hooks, cross-tab <code class="inline">sync()</code>. Released on GitHub only — vendored from source (see VENDOR.md).</td></tr>
+    <tr><td>BroadcastChannel</td><td>platform</td><td>Cross-window transport: replica sync, presence heartbeats, cursor positions. Ephemeral by nature — which is the lesson.</td></tr>
+    <tr><td>CodeMirror 5</td><td>5.65.16 · vendor/codemirror/</td><td>The tour editors (gruvbox-dark), with live signal values as inlay-hint bookmarks.</td></tr>
+    <tr><td>js-beautify</td><td>1.15.4 · vendor/js-beautify/</td><td>Format button (HTML + JS modes), and the pipeline that bakes formatted defaults.</td></tr>
+    <tr><td>JetBrains Mono</td><td>5.3.0 · vendor/fonts/</td><td>Editor + code typeface.</td></tr>
+  </table>
+
+  <h2>The SDK that wants to exist</h2>
+  <p>Building these pages kept reinventing the same five pieces. Factored out,
+  they'd be a small <strong>browser kit for Datastar + CQRS + SSE</strong> —
+  enough to demonstrate fullstack concepts (commands, read models, streams,
+  presence) with zero infrastructure. The recurring shape:</p>
+  <pre class="sketch">// sketch, not shipped code — the pattern every page converged on
+Store.commit(cmd)     // mutate + notify + broadcast (local command)
+Store.merge(cmd)      // mutate + notify, never rebroadcast (remote command)
+Store.subscribe(fn)   // re-read + patch on every change (read model)
+patch(`&lt;div data-on:evt__window="..."&gt;`)  // the bridge: JS can't write $signals,
+                                      // so a mounted div turns events into patches</pre>
+  <p>Plus the honesty rules that survived contact with users: tab sources are
+  the running code (text/plain blocks, no escaping games), edits re-apply
+  live, broken tabs fail visibly without killing the demo, and subscriptions
+  are owner-scoped so navigation never leaks listeners.</p>
+
+  <h2>Next: durable state via sqlite-wasm</h2>
+  <p>Evaluated, not yet vendored. The official
+  <a href="https://sqlite.org/wasm/doc/trunk/index.md" target="_blank" rel="noopener">sqlite3 WASM build</a>
+  would give each tab a <strong>durable relational store</strong>: per-origin
+  persistence via OPFS, SQL read models instead of hand-rolled maps, and the
+  worker-based API keeps queries off the UI thread. What changes if it lands:
+  the board survives reloads, presence stays ephemeral by contrast, and the
+  "fake backend" gets one step harder to distinguish from a real one.</p>
+  <p>Costs, honestly: roughly a megabyte of wasm+JS, an async worker API
+  everywhere state is touched today, and secure-context-only (already true
+  here — localhost and Pages both qualify). Verdict: the natural next modeling
+  step after collections; waiting for a demo that needs durability before
+  paying the megabyte.</p>
+
+  <footer class="hint">Sources:
+  <a href="https://data-star.dev/docs" target="_blank" rel="noopener">Datastar docs</a> ·
+  <a href="https://mswjs.io/docs" target="_blank" rel="noopener">MSW docs</a> ·
+  <a href="https://github.com/mswjs/data" target="_blank" rel="noopener">mswjs/data</a> ·
+  <a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">this repo</a></footer>
+</main>
+</body>
+</html>
