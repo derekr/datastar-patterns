@@ -9,7 +9,6 @@ same shapes, factored out, tested.
 | Entry | Contents | Pulls in |
 |---|---|---|
 | `.` | sse + bus + routes + element | nothing heavy, ever |
-| `./http` | `createApp` (MSW-backed routes, boot gating) | `msw` (peer) |
 | `./sse` | SSE builders, signals parsing, streams | nothing |
 | `./bus` | cross-window bus, owner cleanup | nothing |
 
@@ -43,7 +42,7 @@ npm run build # vite lib build (multi-entry es)
 
 ## Status / roadmap
 
-- v0: http/sse/bus/routes/element + hand-written `index.d.ts`.
+- v0: sse/bus/routes/element + hand-written `index.d.ts`.
 - Next: sqlite entry (`sql` tag + `open()`), editor entry (CM bundle +
   TS-worker wiring), `removeElements/removeSignals/executeScript` (pending
   wire-format verification against the official SDK), tour-shell factoring

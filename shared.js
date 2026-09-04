@@ -503,9 +503,58 @@ window.TourShell = {
 
     go(Math.max(0,(parseInt((location.hash||'').replace('#'+hashPrefix,''),10)||1)-1));
     document.addEventListener('datastar-ready', ()=>renderPreview());
+    swHealthCheck();
     return {go, editor};
   }
 };
+
+// Stale service workers (e.g. an old mock worker from a previous experiment)
+// can't break these pages — the fetch shim answers in-page before any network
+// — but they deserve cleanup. Detect root-scope registrations for known-dead
+// scripts and offer a one-click fix. Never touches non-root scopes (lab
+// workers live under /lab/ and are managed by their own pages).
+// `__sw-fixture.js` is the e2e fixture exercising this check.
+const DEAD_WORKERS = ['mockServiceWorker.js', '__sw-fixture.js'];
+async function swHealthCheck(){
+  if(!('serviceWorker' in navigator)) return;
+  let regs = [];
+  try{ regs = await navigator.serviceWorker.getRegistrations(); }catch{ return; }
+  const isRoot = (s)=>s === location.origin + '/' || s === location.origin;
+  const scriptOf = (r)=>r.active?.scriptURL || r.waiting?.scriptURL || r.installing?.scriptURL || '';
+  const stale = regs.filter(r =>
+    isRoot(r.scope) && DEAD_WORKERS.some((name)=>scriptOf(r).endsWith('/' + name))
+  );
+  if(!stale.length) return;
+  let dismissed = false;
+  try{ dismissed = sessionStorage.getItem('sw-health-dismissed') === '1'; }catch{}
+  if(dismissed) return;
+  const main = document.getElementById('main');
+  if(!main) return;
+  const div = document.createElement('div');
+  div.className = 'banner off';
+  div.style.marginBottom = '16px';
+  const n = stale.length;
+  div.innerHTML = `<span>Found ${n} stale service worker${n === 1 ? '' : 's'} (mock backend, no longer used) — harmless, but remove for a clean slate?</span> `;
+  const fix = document.createElement('button');
+  fix.className = 'btn secondary';
+  fix.style.marginLeft = '8px';
+  fix.textContent = 'Remove & reload';
+  fix.onclick = async ()=>{
+    for(const r of stale){ try{ await r.unregister(); }catch{} }
+    location.reload();
+  };
+  const no = document.createElement('button');
+  no.className = 'mini';
+  no.style.marginLeft = '8px';
+  no.textContent = 'dismiss';
+  no.onclick = ()=>{
+    try{ sessionStorage.setItem('sw-health-dismissed', '1'); }catch{}
+    div.remove();
+  };
+  div.appendChild(fix);
+  div.appendChild(no);
+  main.prepend(div);
+}
 
 if(!window.DS_NO_SHIM) DS.installShim();
 })();

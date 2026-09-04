@@ -1,6 +1,6 @@
-// Pure route table with replace semantics. No MSW import, no DOM,
-// no network — unit-testable anywhere. The http entry adapts this
-// table onto worker.use(); tests adapt it onto setupServer().
+// Pure route table with replace semantics. No network, no DOM,
+// no workers — unit-testable anywhere. Hosts adapt the table onto
+// their transport (fetch shim registry, test servers, …).
 export function createRoutes() {
   const table = new Map();
   const key = (method, path) => method.toUpperCase() + ' ' + path;

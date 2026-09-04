@@ -1,9 +1,6 @@
 {
   "_comment": "Demo-site import map (NOT SDK surface — maps are deployment-specific: paths depend on who serves what from where). Zero-build pages inline this block verbatim in a <script type=\"importmap\"> tag. Bundler (Vite) consumers ignore this file entirely.",
   "imports": {
-    "msw": "./vendor/msw/browser.mjs",
-    "msw/browser": "./vendor/msw/browser.mjs",
-    "@kit/http": "./sdk/src/http.js",
     "@kit/sse": "./sdk/src/sse.js",
     "@kit/bus": "./sdk/src/bus.js",
     "@kit/element": "./sdk/src/element.js"

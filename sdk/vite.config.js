@@ -11,16 +11,13 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(root, 'src/index.js'),
-        http: resolve(root, 'src/http.js'),
         sse: resolve(root, 'src/sse.js'),
         bus: resolve(root, 'src/bus.js'),
         element: resolve(root, 'src/element.js'),
       },
       formats: ['es'],
     },
-    rollupOptions: {
-      external: [/^msw(\/.*)?$/],
-    },
+    rollupOptions: {},
     outDir: 'dist',
   },
 });

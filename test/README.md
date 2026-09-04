@@ -31,6 +31,8 @@ The `webServer` block reuses an existing `:9271` server when present
 - `hono-coexist` — shim-served tour pages (no worker) + Hono (`/lab/`) share
   one profile without interference.
 - `sse-shim` — SSE page on the registry: ping, validation, drop/reconnect.
+- `sw-stale` — stale root worker triggers the cleanup banner; one click
+  removes it, demos work before and after.
 - `hono-demo` — boot, fan-out, live-edit, break-keeps-serving, throw-surfacing.
 
 No CI wired yet — say the word and the same command runs in Actions.
