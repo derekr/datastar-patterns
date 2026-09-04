@@ -28,6 +28,13 @@
     <button class="btn" data-on:click="@get('/api/demo-ping')">Ping</button>
     <div id="demo_out" style="margin-top:8px"><em>pong lands here</em></div>
   </div>
+  <div class="card"><h3>Command + patch over SSE <span class="right"><span class="sig">POST, mutates, patches</span></span></h3>
+    <div data-signals:demo_n="0">
+      <button class="btn" data-on:click="@post('/api/demo-incr')">Increment (server)</button>
+      <p>count: <strong id="demo_count">…</strong> · signal: <span data-text="$demo_n"></span></p>
+      <p class="sig">Watch devtools Network: a real POST carrying signals, then an elements patch plus a signals patch.</p>
+    </div>
+  </div>
   <div class="card"><h3>@kit/sse — builder output is the wire format</h3>
     <pre id="sseOut"></pre>
   </div>
@@ -50,7 +57,7 @@
 <script type="module">
 import { createApp } from '@kit/http';
 import { createRoutes } from '@kit/http';
-import { sse, patchElements } from '@kit/sse';
+import { sse, patchElements, patchSignals } from '@kit/sse';
 import { createBus } from '@kit/bus';
 import { defineShell } from '@kit/element';
 
@@ -60,6 +67,15 @@ routes.add('GET', '/api/demo-ping', async () => {
   await new Promise((r) => setTimeout(r, 200));
   const { text } = await import('@kit/sse');
   return text(sse(patchElements('<strong>pong (SDK http+sse)</strong>', { selector: '#demo_out', mode: 'inner' })));
+});
+let demoCount = 0; // server-side state (page lifetime, like a real backend's memory)
+routes.add('POST', '/api/demo-incr', async () => {
+  demoCount++;
+  const { text } = await import('@kit/sse');
+  return text(sse(
+    patchElements(`<strong>${demoCount}</strong>`, { selector: '#demo_count', mode: 'inner' }),
+    patchSignals(JSON.stringify({ demo_n: demoCount }))
+  ));
 });
 const app = createApp({ routes });
 try {
