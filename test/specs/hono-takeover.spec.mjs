@@ -38,7 +38,7 @@ test('stale controller heals: ends on demo-worker, ping works', async ({ browser
   expect(ctl).toContain('demo-worker.mjs');
   expect(navs).toBeLessThanOrEqual(2);
 
-  await page.click('text=Increment (server)');
+  await page.click('.demo button.btn');
   await page.waitForFunction(
     () => document.getElementById('hono_count')?.textContent.trim() !== '…',
     { timeout: 8000 }

@@ -44,8 +44,7 @@
   <table class="stack">
     <tr><th>Tool</th><th>Version / path</th><th>Role on this site</th></tr>
     <tr><td>Datastar</td><td>v1.0.3 · vendor/datastar.js</td><td>The subject itself: hypermedia UI — backend patches elements/signals over SSE, frontend reactivity via <code class="inline">data-*</code>.</td></tr>
-    <tr><td>MSW</td><td>2.15.0 · vendor/msw/ + /mockServiceWorker.js</td><td>Real fetch interception via Service Worker on the SSE page: requests show up in devtools, streams arrive as genuine <code class="inline">text/event-stream</code> responses.</td></tr>
-    <tr><td>fetch-shim registry</td><td>shared.js (<code class="inline">DS.handle</code>)</td><td>The pre-MSW approach, kept on Basics/CQRS: same declare-handlers-per-endpoint shape, answered in-page. Handler tabs compile to it.</td></tr>
+    <tr><td>fetch-shim registry</td><td>shared.js (<code class="inline">DS.handle</code>)</td><td>The backend for every tour page: declare-handlers-per-endpoint, answered in-page (fetch shim + true streams). Handler tabs compile to it.</td></tr>
     <tr><td>@mswjs/data</td><td>v1.1.8 ex-GitHub · vendor/msw-data/</td><td>Real models for the CQRS board: schema-checked <code class="inline">scores</code> collection, ops, change hooks, cross-tab <code class="inline">sync()</code>. Released on GitHub only — vendored from source (see VENDOR.md).</td></tr>
     <tr><td>BroadcastChannel</td><td>platform</td><td>Cross-window transport: replica sync, presence heartbeats, cursor positions. Ephemeral by nature — which is the lesson.</td></tr>
     <tr><td>CodeMirror 5</td><td>5.65.16 · vendor/codemirror/</td><td>The tour editors (gruvbox-dark), with live signal values as inlay-hint bookmarks.</td></tr>
@@ -105,7 +104,6 @@ patch(`&lt;div data-on:evt__window="..."&gt;`)  // the bridge: JS can't write $s
 
   <footer class="hint">Sources:
   <a href="https://data-star.dev/docs" target="_blank" rel="noopener">Datastar docs</a> ·
-  <a href="https://mswjs.io/docs" target="_blank" rel="noopener">MSW docs</a> ·
   <a href="https://github.com/mswjs/data" target="_blank" rel="noopener">mswjs/data</a> ·
   <a href="https://syncular.dev" target="_blank" rel="noopener">syncular</a> ·
   <a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">this repo</a></footer>

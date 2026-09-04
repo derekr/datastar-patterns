@@ -1,8 +1,8 @@
-// MSW worker (/) and Hono worker (/lab/) coexist in one profile:
-// each serves its own pages without evicting the other.
+// Shim-served tour pages and the Hono worker (/lab/) share one profile:
+// sse works with NO service worker controlling it, lab works with its own.
 import { test, expect } from '@playwright/test';
 
-test('msw + hono workers coexist', async ({ browser }) => {
+test('shim pages + hono worker coexist', async ({ browser }) => {
   const ctx = await browser.newContext();
   const sse = await ctx.newPage();
   await sse.goto('/sse.html#sse-1');
@@ -17,13 +17,15 @@ test('msw + hono workers coexist', async ({ browser }) => {
   const ctl = await lab.evaluate(() => navigator.serviceWorker.controller?.scriptURL || '(none)');
   expect(ctl).toContain('demo-worker.mjs');
 
-  // sse still served by MSW path (shim-free page, worker-backed)
+  // sse is worker-free (fetch shim answers in-page) and still patches
+  const sseCtl = await sse.evaluate(() => navigator.serviceWorker.controller?.scriptURL || '(none)');
+  expect(sseCtl).toBe('(none)');
   await sse.click('#preview button');
   await sse.waitForTimeout(1200);
   expect(await sse.textContent('#s8_out')).not.toContain('pong lands here');
 
   // lab fan still works alongside
-  await lab.click('text=Increment (server)');
+  await lab.click('.demo button.btn');
   await lab.waitForTimeout(1200);
   expect(await lab.textContent('#hono_count')).not.toContain('…');
   await ctx.close();

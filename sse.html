@@ -17,7 +17,7 @@
   <nav class="tabs"><a href="./index.html">Basics</a><a href="./sse.html" class="active">SSE</a><a href="./cqrs.html">CQRS</a><a href="./about.html">About</a></nav>
   <span class="pill" id="stepPill">Step 1 of 5</span>
   <span class="spacer"></span>
-  <span class="shim">MSW · Service Worker · no server</span>
+  <span class="shim">fetch-shim backend · no server</span>
 </header>
 
 <div class="layout">
@@ -43,10 +43,8 @@
 </main>
 </div>
 
-<script>window.DS_NO_SHIM = true;</script>
 <script src="./vendor/js-beautify/beautify-html.js"></script>
 <script src="./vendor/js-beautify/beautify.js"></script>
-<script src="./vendor/msw/iife.js"></script>
 <script src="./vendor/codemirror/lib/codemirror.js"></script>
 <script src="./vendor/codemirror/mode/xml/xml.js"></script>
 <script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
@@ -56,18 +54,17 @@
 <script type="text/plain" id="h-ping">
 // GET /api/ping — one request, one event, connection closes.
 // The raw text below is literally what crosses the wire.
-handle('GET', '/api/ping', async () => {
+handle('/api/ping', async (signals, H) => {
   await H.wait(200);
-  return H.text(H.sse(
+  return H.sse(
     H.patchEl('#s8_out', `<strong>pong at ${new Date().toLocaleTimeString()}</strong>`)
-  ));
+  );
 });
 </script>
 <script type="text/plain" id="h-contact">
 // POST /api/contact — live validation.
 // Same endpoint the submit step reuses: validate once, run everywhere.
-handle('POST', '/api/contact', async ({request}) => {
-  const signals = await H.signals(request);
+handle('/api/contact', async (signals, H) => {
   const errs = [];
   if (!String(signals.s8_email ?? '').includes('@')) errs.push('email must contain @');
   if (String(signals.s8_msg ?? '').length < 10) errs.push('message must be ≥ 10 chars');
@@ -75,14 +72,13 @@ handle('POST', '/api/contact', async ({request}) => {
   const html = errs.length
     ? `<ul class="errs">${errs.map(e => `<li>${H.esc(e)}</li>`).join('')}</ul>`
     : `<span class="ok-line">✓ looks good</span>`;
-  return H.text(H.sse(H.patchEl('#s8_errors', html)));
+  return H.sse(H.patchEl('#s8_errors', html));
 });
 </script>
 <script type="text/plain" id="h-submit">
 // POST /api/contact-submit — staged submit, one patch per stage.
 // Terminal branches must close() the stream, or it stays open.
-handle('POST', '/api/contact-submit', async ({request}) => {
-  const signals = await H.signals(request);
+handle('/api/contact-submit', async (signals, H) => {
   const email = signals.s8_email ?? '', msg = signals.s8_msg ?? '';
   return H.stream((write, { after, close }) => {
     write(H.sse(H.patchEl('#s8_status', '⏳ Validating…')));
@@ -127,7 +123,7 @@ handle('POST', '/api/contact-submit', async ({request}) => {
 // GET /api/ticks — open stream, one signal patch per beat.
 // POST /api/drop — kill it; the page goes honestly stale.
 // POST /api/reconnect — full snapshot, no replay.
-handle('GET', '/api/ticks', async () => {
+handle('/api/ticks', async (signals, H) => {
   if (!H.srv.tickTimer) H.srv.tickTimer = setInterval(() => { H.srv.tick++; }, 1500);
   return H.stream((write, { every, close }) => {
     write(H.sse(H.patchSig({ s8_tick: H.srv.tick })));
@@ -138,22 +134,22 @@ handle('GET', '/api/ticks', async () => {
   });
 });
 
-handle('POST', '/api/drop', async () => {
+handle('/api/drop', async (signals, H) => {
   H.srv.down = true;
   await H.wait(200);
-  return H.text(H.sse(
+  return H.sse(
     H.patchSig({ s8_online: false }),
     H.patchEl('#s8_conn', `<div class="banner off">● disconnected — showing last known state</div>`)
-  ));
+  );
 });
 
-handle('POST', '/api/reconnect', async () => {
+handle('/api/reconnect', async (signals, H) => {
   H.srv.down = false;
   await H.wait(300);
-  return H.text(H.sse(
+  return H.sse(
     H.patchSig({ s8_online: true, s8_tick: H.srv.tick }),
     H.patchEl('#s8_conn', `<div class="banner okb">● live — full snapshot applied (tick ${H.srv.tick}), no replay needed</div>`)
-  ));
+  );
 });
 </script>
 <script>
@@ -289,56 +285,9 @@ data: elements &lt;strong&gt;pong …&lt;/strong&gt;
 ];
 </script>
 <script type="module">
-const {setupWorker, http} = window.MockServiceWorker;
-const worker = setupWorker();
-const backend = {
-  apply(code){
-    try{
-      new Function('handle','H','CONTACTS', code)(
-        (method, path, resolver)=>worker.use(http[method.toLowerCase()](path, resolver)),
-        DS.H, DS.CONTACTS);
-      return {};
-    }catch(e){ return {error: String((e && e.message) || e)}; }
-  },
-  resetAll(){ worker.resetHandlers(); },
-};
-async function ensureWorker() {
-  // worker.start() resolving ("Mocking enabled") is NOT the same as this
-  // page being controlled: bfcache/session-restore loads can come back
-  // uncontrolled, and then every request bypasses to the real network
-  // (404s attributed to the fetch call site — exactly that screenshot).
-  await worker.start({
-    onUnhandledRequest: 'bypass',
-    serviceWorker: {url: './mockServiceWorker.js', options: {scope: './'}},
-  });
-  if(navigator.serviceWorker.controller) return 'ready';
-  if(!sessionStorage.getItem('msw-reloaded')){
-    sessionStorage.setItem('msw-reloaded', '1');
-    location.reload();
-    await new Promise(()=>{});
-  }
-  return 'uncontrolled';
-}
-try {
-  // gate everything until the worker can actually intercept.
-  const state = await ensureWorker();
-  const shimLabel = document.querySelector('header .shim');
-  if(shimLabel) shimLabel.textContent = 'MSW · ' + (navigator.serviceWorker.controller ? 'worker ready' : 'UNCONTROLLED');
-  if(state !== 'ready'){
-    const main = document.getElementById('main');
-    const div = document.createElement('div');
-    div.className = 'banner off';
-    div.textContent = 'MSW worker registered but this page is uncontrolled (reload didn\u2019t take control) — demos will 404. Hard-reload the tab.';
-    main.prepend(div);
-  }
-} catch(e) {
-  const main = document.getElementById('main');
-  const div = document.createElement('div');
-  div.className = 'banner off';
-  div.textContent = 'MSW worker failed to start — demos need http(s): ' + ((e && e.message) || e);
-  main.prepend(div);
-}
-TourShell.init({steps: STEPS, hashPrefix: 'sse-', backend});
+// Registry backend (fetch shim): all SSE endpoints below answer in-page.
+// No worker, no network — the shim from shared.js handles /api/*.
+TourShell.init({steps: STEPS, hashPrefix: 'sse-'});
 </script>
 </body>
 </html>

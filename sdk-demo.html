@@ -3,15 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SDK demo (scratch — one section per entry)</title>
-<script type="module" src="./vendor/datastar.js"></script>
+<title>SDK demo (scratch — sse, bus, element entries)</title>
 <link rel="stylesheet" href="./theme.css" />
 <style>main{max-width:860px;margin:0 auto;padding:26px 28px}.peer{border:2px dashed #504945;border-radius:10px;padding:12px;margin-top:8px}</style>
 <script type="importmap">
 {"imports": {
-  "msw": "./vendor/msw/browser.mjs",
-  "msw/browser": "./vendor/msw/browser.mjs",
-  "@kit/http": "./sdk/src/http.js",
   "@kit/sse": "./sdk/src/sse.js",
   "@kit/bus": "./sdk/src/bus.js",
   "@kit/element": "./sdk/src/element.js"
@@ -24,17 +20,6 @@
   <span class="pill" id="bootPill">booting…</span>
 </header>
 <main>
-  <div class="card"><h3>@kit/http — app + route <span class="right"><span class="sig" id="httpStatus">starting…</span></span></h3>
-    <button class="btn" data-on:click="@get('/api/demo-ping')">Ping</button>
-    <div id="demo_out" style="margin-top:8px"><em>pong lands here</em></div>
-  </div>
-  <div class="card"><h3>Command + patch over SSE <span class="right"><span class="sig">POST, mutates, patches</span></span></h3>
-    <div data-signals:demo_n="0">
-      <button class="btn" data-on:click="@post('/api/demo-incr')">Increment (server)</button>
-      <p>count: <strong id="demo_count">…</strong> · signal: <span data-text="$demo_n"></span></p>
-      <p class="sig">Watch devtools Network: a real POST carrying signals, then an elements patch plus a signals patch.</p>
-    </div>
-  </div>
   <div class="card"><h3>@kit/sse — builder output is the wire format</h3>
     <pre id="sseOut"></pre>
   </div>
@@ -55,53 +40,10 @@
   </div>
 </main>
 <script type="module">
-import { createApp } from '@kit/http';
-import { createRoutes } from '@kit/http';
-import { sse, patchElements, patchSignals, text } from '@kit/sse';
+import { patchElements } from '@kit/sse';
 import { createBus } from '@kit/bus';
 import { defineShell } from '@kit/element';
 
-// ---- http: routes table + app, Replace semantics via worker.use ----
-const routes = createRoutes();
-routes.add('GET', '/api/demo-ping', async () => {
-  await new Promise((r) => setTimeout(r, 200));
-  const { text } = await import('@kit/sse');
-  return text(sse(patchElements('<strong>pong (SDK http+sse)</strong>', { selector: '#demo_out', mode: 'inner' })));
-});
-let demoCount = 0; // server-side state (page lifetime, like a real backend's memory)
-routes.add('POST', '/api/demo-incr', async () => {
-  demoCount++;
-  return text(sse(
-    patchElements(`<strong>${demoCount}</strong>`, { selector: '#demo_count', mode: 'inner' }),
-    patchSignals(JSON.stringify({ demo_n: demoCount }))
-  ));
-});
-// fan-out: resolver bumps its copy, broadcasts the value, patches locally;
-// peers update through the channel (their own resolvers never run for this).
-const fanOut = new BroadcastChannel('sdk-fan');
-const pageId = 'p-' + Math.random().toString(36).slice(2, 7);
-let fanCount = 0;
-routes.add('POST', '/api/demo-fan', async () => {
-  fanCount++;
-  fanOut.postMessage({ count: fanCount, by: pageId });
-  return text(sse(patchSignals(JSON.stringify({ fan_n: fanCount }))));
-});
-const fanIn = new BroadcastChannel('sdk-fan');
-fanIn.onmessage = (ev) => {
-  const m = ev.data || {};
-  if (m.by === pageId) return; // own broadcast: already patched via response
-  document.dispatchEvent(new CustomEvent('fan-count', { detail: m }));
-};
-const app = createApp({ routes });
-try {
-  await app.start({
-    onUnhandledRequest: 'bypass',
-    serviceWorker: { url: './mockServiceWorker.js', options: { scope: './' } },
-  });
-  document.getElementById('httpStatus').textContent = 'worker ready';
-} catch (e) {
-  document.getElementById('httpStatus').textContent = 'worker FAILED: ' + (e.message || e);
-}
 document.getElementById('bootPill').textContent = 'sdk demo live';
 
 // ---- sse: show the builder output verbatim ----

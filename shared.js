@@ -249,7 +249,8 @@ DS.defineColorPicker = ()=>{
 window.TourShell = {
   init({steps, hashPrefix='tour-', backend=null}){
     // backend applies handler.js tab code. Default is the in-page registry
-    // (fetch shim); pages may inject an MSW-backed one instead.
+    // (fetch shim); pages may inject an alternate backend with the same
+    // {apply(code)->{error?}, resetAll()} shape.
     backend = backend || {apply: code=>DS.runHandlerCode(code), resetAll(){}};
     const nav = document.getElementById('nav');
     const pill = document.getElementById('stepPill');
@@ -261,6 +262,9 @@ window.TourShell = {
     const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
       mode: 'htmlmixed', theme: 'gruvbox-dark', lineNumbers: true,
     });
+    // The editor's DOM (incl. inlay-hint widgets carrying data-* attributes
+    // as *text*) is never app UI: keep Datastar from managing it.
+    editor.getWrapperElement().setAttribute('data-ignore', '');
     // tab bar + handler status, inserted around the editor (pages stay thin)
     const tabsBar = document.createElement('div');
     tabsBar.className = 'etabs';
@@ -378,7 +382,7 @@ window.TourShell = {
     }
     function runJsRec(rec){
       if(rec.kind === 'endpoint'){
-        backend.resetAll(); // registry: noop (Map.set overwrites); MSW: clear stale worker.use()
+        backend.resetAll(); // registry backend: noop (Map.set overwrites)
         const r = backend.apply(rec.buf);
         rec.err = r.error || null;
       }else if(rec.kind === 'sync-pub'){

@@ -28,7 +28,9 @@ The `webServer` block reuses an existing `:9271` server when present
 
 - `hono-takeover` — seeds a conflicting `/lab/` controller, asserts the page
   heals onto `demo-worker.mjs` (≤1 reload) and Ping works.
-- `hono-coexist` — MSW (`/`) + Hono (`/lab/`) serve their pages side by side.
+- `hono-coexist` — shim-served tour pages (no worker) + Hono (`/lab/`) share
+  one profile without interference.
+- `sse-shim` — SSE page on the registry: ping, validation, drop/reconnect.
 - `hono-demo` — boot, fan-out, live-edit, break-keeps-serving, throw-surfacing.
 
 No CI wired yet — say the word and the same command runs in Actions.

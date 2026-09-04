@@ -20,7 +20,7 @@ test('live-editable routes end to end', async ({ browser }) => {
   await b.waitForTimeout(1200); // B snapshot lands
   const count = (p) => p.textContent('#hono_count');
 
-  await a.click('text=Increment (server)');
+  await a.click('.demo button.btn');
   await a.waitForTimeout(1000);
   expect(await count(a)).toContain('1');
   expect(await count(b)).toContain('1');
@@ -35,7 +35,7 @@ test('live-editable routes end to end', async ({ browser }) => {
     () => document.getElementById('routeStatus').textContent === 'route: live',
     { timeout: 8000 }
   );
-  await a.click('text=Increment (server)');
+  await a.click('.demo button.btn');
   await a.waitForTimeout(1000);
   expect(await count(a)).toContain('6');
   expect(await count(b)).toContain('6');
@@ -44,7 +44,7 @@ test('live-editable routes end to end', async ({ browser }) => {
   await a.evaluate(() => window.__cm.setValue('this is not js((('));
   await a.click('#applyBtn');
   await expect(a.locator('#routeStatus')).toContainText('SYNTAX ERROR');
-  await a.click('text=Increment (server)');
+  await a.click('.demo button.btn');
   await a.waitForTimeout(1000);
   expect(await count(a)).toContain('11');
 
@@ -52,7 +52,7 @@ test('live-editable routes end to end', async ({ browser }) => {
   await a.evaluate(() => window.__cm.setValue("throw new Error('boom')"));
   await a.click('#applyBtn');
   await a.waitForTimeout(500);
-  await a.click('text=Increment (server)');
+  await a.click('.demo button.btn');
   await a.waitForTimeout(1000);
   expect(await a.textContent('#hono_status')).toContain('boom');
   expect(errs).toEqual([]);
