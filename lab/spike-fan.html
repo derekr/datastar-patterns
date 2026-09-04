@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hono worker spike (scratch — shared state + fan-out)</title>
+<script type="module" src="../vendor/datastar.js"></script>
+<link rel="stylesheet" href="../theme.css" />
+<style>main{max-width:680px;margin:0 auto;padding:26px 28px}</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="../index.html"><span class="mark">▦</span> Hono worker spike</a>
+  <span class="pill" id="swPill">worker: starting…</span>
+</header>
+<main>
+  <div class="card"><h3>Shared counter (one heap, every tab)</h3>
+    <div data-signals:fan_n="0">
+      <div data-init="@get('api/fan-stream')" data-indicator:fan_live></div>
+      <p style="font-size:28px">shared: <strong id="fan_count">…</strong>
+        <span class="dot" data-class:on="$fan_live" data-class:off="!$fan_live"></span></p>
+      <p class="sig">signal mirror: <span data-text="$fan_n"></span></p>
+      <button class="btn" data-on:click="@post('api/fan-inc')">Increment (server)</button>
+      <div id="fan_status" style="margin-top:8px"></div>
+      <p class="sig">Stream opens on load (data-init). Clicks POST; the worker fans patches to every open stream. Open this page twice.</p>
+    </div>
+  </div>
+</main>
+<script type="module">
+const pill = document.getElementById('swPill');
+try {
+  const reg = await navigator.serviceWorker.register('./worker.mjs', { scope: './', type: 'module' });
+  await navigator.serviceWorker.ready;
+  if (!navigator.serviceWorker.controller) {
+    if (!sessionStorage.getItem('hono-reloaded')) {
+      sessionStorage.setItem('hono-reloaded', '1');
+      location.reload();
+      await new Promise(() => {});
+    }
+    throw new Error('uncontrolled after reload');
+  }
+  pill.textContent = 'worker: ready (' + (reg.active?.state || '?') + ')';
+} catch (e) {
+  pill.textContent = 'worker: FAILED — ' + (e.message || e);
+}
+</script>
+</body>
+</html>

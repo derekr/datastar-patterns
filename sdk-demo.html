@@ -57,7 +57,7 @@
 <script type="module">
 import { createApp } from '@kit/http';
 import { createRoutes } from '@kit/http';
-import { sse, patchElements, patchSignals } from '@kit/sse';
+import { sse, patchElements, patchSignals, text } from '@kit/sse';
 import { createBus } from '@kit/bus';
 import { defineShell } from '@kit/element';
 
@@ -71,12 +71,27 @@ routes.add('GET', '/api/demo-ping', async () => {
 let demoCount = 0; // server-side state (page lifetime, like a real backend's memory)
 routes.add('POST', '/api/demo-incr', async () => {
   demoCount++;
-  const { text } = await import('@kit/sse');
   return text(sse(
     patchElements(`<strong>${demoCount}</strong>`, { selector: '#demo_count', mode: 'inner' }),
     patchSignals(JSON.stringify({ demo_n: demoCount }))
   ));
 });
+// fan-out: resolver bumps its copy, broadcasts the value, patches locally;
+// peers update through the channel (their own resolvers never run for this).
+const fanOut = new BroadcastChannel('sdk-fan');
+const pageId = 'p-' + Math.random().toString(36).slice(2, 7);
+let fanCount = 0;
+routes.add('POST', '/api/demo-fan', async () => {
+  fanCount++;
+  fanOut.postMessage({ count: fanCount, by: pageId });
+  return text(sse(patchSignals(JSON.stringify({ fan_n: fanCount }))));
+});
+const fanIn = new BroadcastChannel('sdk-fan');
+fanIn.onmessage = (ev) => {
+  const m = ev.data || {};
+  if (m.by === pageId) return; // own broadcast: already patched via response
+  document.dispatchEvent(new CustomEvent('fan-count', { detail: m }));
+};
 const app = createApp({ routes });
 try {
   await app.start({
