@@ -8,3 +8,13 @@
 - Proven: shared worker heap across tabs (click in A → both show 1;
   click in B → both show 2), snapshot-on-subscribe for late joiners,
   `data-init` stream open, indicator liveness dot.
+
+## demo-hono.html + demo-worker.mjs (live-editable routes)
+
+- Same scope, second worker file: default POST route + fixed stream route,
+  `{type:'set-route'}` message protocol (compile in worker, ack to page),
+  runtime throws fan out an error patch + HTTP 500.
+- Default route source lives in the page (`#default-handler` text block) —
+  single source of truth, worker starts empty.
+- Proven live: edit +1→+5 applies without reload; syntax breaks go red
+  while the old route keeps serving; `throw` surfaces visibly in-page.
