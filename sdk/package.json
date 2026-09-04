@@ -1,0 +1,23 @@
+{
+  "name": "datastar-browser-kit",
+  "version": "0.0.1",
+  "description": "Browser-first kit for Datastar + CQRS + SSE demos. Sketch status: http/sse/bus only.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./http": "./src/http.js",
+    "./sse": "./src/sse.js",
+    "./bus": "./src/bus.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "vite build"
+  },
+  "peerDependencies": {
+    "msw": "^2.0.0"
+  },
+  "devDependencies": {
+    "msw": "2.15.0",
+    "vite": "^6.0.0"
+  }
+}
