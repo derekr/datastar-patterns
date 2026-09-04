@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TS worker spike (scratch — in-worker diagnostics)</title>
+<link rel="stylesheet" href="./vendor/codemirror/lib/codemirror.css" />
+<link rel="stylesheet" href="./vendor/codemirror/theme/gruvbox-dark.css" />
+<link rel="stylesheet" href="./theme.css" />
+<style>
+  main { max-width: 860px; margin: 0 auto; padding: 26px 28px; }
+  .ts-err { text-decoration: underline wavy var(--red); text-underline-offset: 3px; background: rgba(251,73,52,.08); border-radius: 3px; }
+  #tsList { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+  #tsList li { font-family: ui-monospace, monospace; }
+  #tsList .code { color: var(--purple); }
+  #tsList .pos { color: var(--faint); }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="./index.html"><span class="mark">▦</span> TS worker spike</a>
+  <span class="pill" id="tsStatus">worker: starting…</span>
+</header>
+<main>
+  <div class="card"><h3>Type here — diagnostics come from a worker</h3>
+    <textarea id="editor"></textarea>
+  </div>
+  <div class="card"><h3>Diagnostics <span class="right"><span class="sig" id="tsLatency"></span></span></h3>
+    <ul id="tsList"><li class="sig">waiting for worker…</li></ul>
+  </div>
+</main>
+<script src="./vendor/codemirror/lib/codemirror.js"></script>
+<script src="./vendor/codemirror/mode/javascript/javascript.js"></script>
+<script>
+const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+  mode: 'javascript', theme: 'gruvbox-dark', lineNumbers: true,
+});
+window.__cm = editor; // test seam
+editor.setValue(`function greet(name: string): string {
+  return 'hello ' + name;
+}
+const n: number = greet('ada');
+greet(42);
+`);
+
+const statusEl = document.getElementById('tsStatus');
+const listEl = document.getElementById('tsList');
+const latencyEl = document.getElementById('tsLatency');
+let worker = null;
+let ready = false;
+let seq = 0;
+let deb = null;
+
+function render(diags, ms) {
+  editor.getAllMarks().forEach((m) => m.clear());
+  latencyEl.textContent = diags.length + ' problem' + (diags.length === 1 ? '' : 's') + ' · ' + ms + 'ms';
+  if (!diags.length) {
+    listEl.innerHTML = '<li class="sig">clean — no diagnostics</li>';
+    return;
+  }
+  listEl.innerHTML = '';
+  for (const d of diags) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="pos">${d.line + 1}:${d.character + 1}</span> <span class="code">TS${d.code}</span> `;
+    li.appendChild(document.createTextNode(d.message));
+    listEl.appendChild(li);
+    try {
+      const from = editor.posFromIndex(d.start);
+      const to = editor.posFromIndex(d.start + d.length);
+      editor.markText(from, to, { className: 'ts-err', title: `TS${d.code}: ${d.message}` });
+    } catch {}
+  }
+}
+
+try {
+  worker = new Worker('./vendor/ts/ts-worker.js');
+  worker.onmessage = (e) => {
+    const m = e.data || {};
+    if (m.type === 'ready') {
+      ready = true;
+      statusEl.textContent = 'worker: ready';
+      check();
+    } else if (m.type === 'error') {
+      statusEl.textContent = 'worker: FAILED — ' + m.message;
+    } else if (m.type === 'diagnostics') {
+      if (m.id !== seq) return; // stale
+      render(m.diagnostics, m.ms);
+    }
+  };
+  worker.onerror = (e) => { statusEl.textContent = 'worker: FAILED — ' + (e.message || e.type); };
+  worker.postMessage({ id: 0, type: 'init' });
+} catch (e) {
+  statusEl.textContent = 'worker: FAILED — ' + (e.message || e);
+}
+
+function check() {
+  if (!ready) return;
+  seq++;
+  worker.postMessage({ id: seq, type: 'diagnose', code: editor.getValue() });
+}
+editor.on('change', () => {
+  clearTimeout(deb);
+  deb = setTimeout(check, 400);
+});
+</script>
+</body>
+</html>
