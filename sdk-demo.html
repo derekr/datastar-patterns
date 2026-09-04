@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SDK demo (scratch — one section per entry)</title>
+<script type="module" src="./vendor/datastar.js"></script>
+<link rel="stylesheet" href="./theme.css" />
+<style>main{max-width:860px;margin:0 auto;padding:26px 28px}.peer{border:2px dashed #504945;border-radius:10px;padding:12px;margin-top:8px}</style>
+<script type="importmap">
+{"imports": {
+  "msw": "./vendor/msw/browser.mjs",
+  "msw/browser": "./vendor/msw/browser.mjs",
+  "@kit/http": "./sdk/src/http.js",
+  "@kit/sse": "./sdk/src/sse.js",
+  "@kit/bus": "./sdk/src/bus.js",
+  "@kit/element": "./sdk/src/element.js"
+}}
+</script>
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="./index.html"><span class="mark">▦</span> SDK demo</a>
+  <span class="pill" id="bootPill">booting…</span>
+</header>
+<main>
+  <div class="card"><h3>@kit/http — app + route <span class="right"><span class="sig" id="httpStatus">starting…</span></span></h3>
+    <button class="btn" data-on:click="@get('/api/demo-ping')">Ping</button>
+    <div id="demo_out" style="margin-top:8px"><em>pong lands here</em></div>
+  </div>
+  <div class="card"><h3>@kit/sse — builder output is the wire format</h3>
+    <pre id="sseOut"></pre>
+  </div>
+  <div class="card"><h3>@kit/bus — two cards, one channel</h3>
+    <div class="peer">A <button class="btn secondary" id="sendA">Send from A</button></div>
+    <div class="peer">B: <span id="recvB"><em>nothing yet</em></span></div>
+  </div>
+  <div class="card"><h3>@kit/element — eager shell, lazy guts</h3>
+    <ds-demo id="okEl">
+      <span slot="loading">warming up (caller-rendered)…</span>
+      <span slot="error">broke unexpectedly.</span>
+    </ds-demo>
+    <ds-demo id="badEl" data-fail="1">
+      <span slot="loading">warming up…</span>
+      <span slot="error">failed as designed — see ds-error.</span>
+    </ds-demo>
+    <p class="sig" id="elStatus">shells defined, loaders pending…</p>
+  </div>
+</main>
+<script type="module">
+import { createApp } from '@kit/http';
+import { createRoutes } from '@kit/http';
+import { sse, patchElements } from '@kit/sse';
+import { createBus } from '@kit/bus';
+import { defineShell } from '@kit/element';
+
+// ---- http: routes table + app, Replace semantics via worker.use ----
+const routes = createRoutes();
+routes.add('GET', '/api/demo-ping', async () => {
+  await new Promise((r) => setTimeout(r, 200));
+  const { text } = await import('@kit/sse');
+  return text(sse(patchElements('<strong>pong (SDK http+sse)</strong>', { selector: '#demo_out', mode: 'inner' })));
+});
+const app = createApp({ routes });
+try {
+  await app.start({
+    onUnhandledRequest: 'bypass',
+    serviceWorker: { url: './mockServiceWorker.js', options: { scope: './' } },
+  });
+  document.getElementById('httpStatus').textContent = 'worker ready';
+} catch (e) {
+  document.getElementById('httpStatus').textContent = 'worker FAILED: ' + (e.message || e);
+}
+document.getElementById('bootPill').textContent = 'sdk demo live';
+
+// ---- sse: show the builder output verbatim ----
+document.getElementById('sseOut').textContent =
+  patchElements('<strong>pong</strong>', { selector: '#demo_out', mode: 'inner' });
+
+// ---- bus: A sends, B renders (two instances = two peers) ----
+const peerA = createBus('sdk-demo');
+const peerB = createBus('sdk-demo');
+let n = 0;
+peerB.on('nudge', (m) => {
+  document.getElementById('recvB').textContent = 'got nudge #' + m.n + ' from ' + m.from;
+});
+document.getElementById('sendA').onclick = () => peerA.send({ kind: 'nudge', n: ++n });
+
+// ---- element: slow loader + failing loader, caller slots ----
+defineShell('ds-demo', {
+  load: async (el) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    if (el.hasAttribute('data-fail')) throw new Error('designed failure');
+    return { hello: 'lazy module' };
+  },
+  render: (stage, mod) => {
+    stage.innerHTML = '<strong>ready: ' + mod.hello + '</strong>';
+  },
+});
+const elStatus = document.getElementById('elStatus');
+elStatus.textContent = 'shells defined, loaders pending…';
+let ready = 0;
+document.addEventListener('ds-ready', () => {
+  if (++ready === 1) elStatus.textContent = 'okEl ready; badEl failing…';
+});
+document.addEventListener('ds-error', () => { elStatus.textContent += ' badEl errored as designed.'; });
+</script>
+</body>
+</html>

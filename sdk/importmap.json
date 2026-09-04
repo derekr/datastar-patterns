@@ -1,0 +1,11 @@
+{
+  "_comment": "Canonical import map for zero-build consumers of datastar-browser-kit. Browsers require import maps inline in the document — copy this block into a <script type=\"importmap\"> tag. Paths below are site-root-relative for this repo; adjust for your own layout. Bundler (Vite) consumers ignore this file entirely.",
+  "imports": {
+    "msw": "./vendor/msw/browser.mjs",
+    "msw/browser": "./vendor/msw/browser.mjs",
+    "@kit/http": "./sdk/src/http.js",
+    "@kit/sse": "./sdk/src/sse.js",
+    "@kit/bus": "./sdk/src/bus.js",
+    "@kit/element": "./sdk/src/element.js"
+  }
+}

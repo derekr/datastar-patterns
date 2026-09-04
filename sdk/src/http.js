@@ -5,6 +5,7 @@
 // every apply resets runtime handlers first, so re-applying never stacks
 // stale worker.use() registrations.
 import { setupWorker, http } from 'msw/browser';
+export { createRoutes } from './routes.js';
 
 export function createApp({ routes, onUnhandledRequest = 'bypass' } = {}) {
   if (!routes) throw new TypeError('createApp needs {routes} — see routes.js');

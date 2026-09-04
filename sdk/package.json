@@ -7,7 +7,8 @@
     ".": "./src/index.js",
     "./http": "./src/http.js",
     "./sse": "./src/sse.js",
-    "./bus": "./src/bus.js"
+    "./bus": "./src/bus.js",
+    "./element": "./src/element.js"
   },
   "scripts": {
     "test": "node --test test/*.test.js",

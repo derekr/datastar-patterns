@@ -14,6 +14,7 @@ export default defineConfig({
         http: resolve(root, 'src/http.js'),
         sse: resolve(root, 'src/sse.js'),
         bus: resolve(root, 'src/bus.js'),
+        element: resolve(root, 'src/element.js'),
       },
       formats: ['es'],
     },
