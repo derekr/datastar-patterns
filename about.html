@@ -83,10 +83,31 @@ patch(`&lt;div data-on:evt__window="..."&gt;`)  // the bridge: JS can't write $s
   step after collections; waiting for a demo that needs durability before
   paying the megabyte.</p>
 
+  <h2>The real version of this architecture</h2>
+  <p>Everything above is a fake of something real:
+  <a href="https://syncular.dev/what-is/" target="_blank" rel="noopener">syncular</a>
+  — offline-first SQL sync with local SQLite per client and a
+  server-authoritative commit log. Our demos mirror its shape with no server:</p>
+  <table class="stack">
+    <tr><th>Here (faked)</th><th>There (real)</th></tr>
+    <tr><td>Per-window replica (<code class="inline">Store</code>, collections)</td><td>Local SQLite per client</td></tr>
+    <tr><td>Broadcast deltas</td><td>Ordered commit log fan-out (validated; ours isn't)</td></tr>
+    <tr><td>Outbox + replay on reconnect</td><td>Durable outbox, idempotent commits</td></tr>
+    <tr><td>Event ledger</td><td>Domain event rows, written atomically</td></tr>
+    <tr><td>Rooms (filtering)</td><td>Scopes (authorization — the piece you write)</td></tr>
+    <tr><td>Signal patches from store reads</td><td>Reactive queries / live snapshots</td></tr>
+    <tr><td>Presence + cursors, explicitly non-store</td><td>Explicitly out of scope there too — "frame-by-frame multiplayer belongs in netcode"</td></tr>
+  </table>
+  <p>Adopting it would cost the premise: syncular has no peer-to-peer mode, so
+  the demos would need a real server. Until then it serves as the reference —
+  and the vocabulary (commit log, scopes, outbox, domain events) is already
+  leaking into the steps above, which is exactly the point.</p>
+
   <footer class="hint">Sources:
   <a href="https://data-star.dev/docs" target="_blank" rel="noopener">Datastar docs</a> ·
   <a href="https://mswjs.io/docs" target="_blank" rel="noopener">MSW docs</a> ·
   <a href="https://github.com/mswjs/data" target="_blank" rel="noopener">mswjs/data</a> ·
+  <a href="https://syncular.dev" target="_blank" rel="noopener">syncular</a> ·
   <a href="https://github.com/derekr/datastar-patterns" target="_blank" rel="noopener">this repo</a></footer>
 </main>
 </body>

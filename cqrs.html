@@ -158,6 +158,34 @@ const STEPS = [
     style="margin-top:10px"><em>empty — score something</em></div>
 </div>`
 },
+{ title: "Offline outbox", sub: "queue, reconnect, replay",
+  pub: "cqrs5-pub", subscribe: "cqrs5-sub",
+  explainer: `<h2>5. Offline outbox: queue, reconnect, replay</h2>
+  <p class="lead">Optimistic locally, honest about the network: while offline, commands apply immediately and queue up. Reconnect replays them in order — and the event ledger below shows everything this replica applied, local or remote.</p>
+  <div class="pattern"><div class="ph">▤ Pattern</div><div><span class="pd">offline-first</span> (apply + queue) → <span class="pe">reconnect</span> (replay + snapshot). Presence and jobs never queue — some state is live-only.</div></div>
+  <ul class="how">
+    <li><span class="rn">1</span><span>Go offline — +1 still applies locally, broadcasts stop, the queue grows.</span></li>
+    <li><span class="rn">2</span><span>Watch the ledger: every applied command, local or remote, in order.</span></li>
+    <li><span class="rn">3</span><span>Reconnect — queued commands replay in order, then a snapshot lands.</span></li>
+  </ul>`,
+  code: `<div class="demo"
+  data-signals:s9_o_count="0"
+  data-signals:s9_o_by="'—'"
+  data-signals:s9_o_queued="0"
+  data-signals:s9_net="'online'">
+  <button class="btn"
+    data-on:click="DS.obInc(1)">+1 (queued when offline)</button>
+  <button class="btn secondary"
+    data-on:click="DS.goOffline()">Go offline</button>
+  <button class="btn secondary"
+    data-on:click="DS.reconnect()">Reconnect &amp; replay</button>
+  <p>shared count: <strong data-text="$s9_o_count"></strong> · net: <span data-text="$s9_net"></span> · queued: <span
+      data-text="$s9_o_queued"></span></p>
+  <p class="sig">last write by <span data-text="$s9_o_by"></span></p>
+  <div id="s9_log"
+    style="margin-top:10px"></div>
+</div>`
+},
 ];
 // deferred: tab sources live in text/plain blocks below this script.
 document.addEventListener('DOMContentLoaded', ()=>TourShell.init({steps: STEPS, hashPrefix: 'cqrs-'}));
@@ -204,6 +232,14 @@ window.R = (()=>{
       tag.style.background = col;
       c.dataset.ts = Date.now();
     },
+    renderLog(){
+      const mount = document.getElementById('s9_log');
+      if(!mount) return;
+      const rows = Store.log.slice(-8).reverse();
+      mount.innerHTML = rows.length
+        ? `<table class="results"><tr><th>#</th><th>What</th><th>By</th></tr>${rows.map(e=>`<tr><td>${e.seq}</td><td>${DS.esc(e.label)}</td><td>${DS.esc(e.by)}</td></tr>`).join('')}</table>`
+        : `<span class="sig">no events yet — every applied command lands here</span>`;
+    },
     sweep(){
       const stage = document.getElementById('s9_stage');
       if(!stage) return;
@@ -232,6 +268,8 @@ window.Store = {
   id: DS.bus.id,
   state: {count: 0},
   subs: [],
+  log: [], seq: 0,
+  online: true, outbox: [], inbox: [],
   get(){ return this.state; },
   subscribe(fn){ this.subs.push(fn); },
   resetSubs(){ this.subs.length = 0; },
@@ -241,19 +279,30 @@ window.Store = {
   notify(cmd){
     this.subs.slice().forEach(fn=>{ try{ fn(cmd); }catch(e){ console.warn(e); } });
   },
+  appendLog(cmd){
+    this.log.push({seq: ++this.seq, label: cmd.type === 'inc' ? `inc +${cmd.delta}` : cmd.type, by: cmd.by});
+    if(this.log.length > 50) this.log.shift();
+  },
   commit(cmd){
     this.mutate(cmd);
-    this.notify(cmd);
-    DS.bus.send({kind: cmd.type, delta: cmd.delta, by: cmd.by});
+    this.appendLog(cmd);
+    if(this.online){ this.notify(cmd); DS.bus.send({kind: cmd.type, delta: cmd.delta, by: cmd.by}); }
+    else { this.outbox.push(cmd); this.notify(cmd); }
   },
   merge(cmd){
     this.mutate(cmd);
+    this.appendLog(cmd);
     this.notify(cmd);
+  },
+  reconnect(){
+    this.inbox.splice(0).forEach(cmd=>{ this.mutate(cmd); this.appendLog(cmd); });
+    this.outbox.splice(0).forEach(cmd=>DS.bus.send({kind: cmd.type, delta: cmd.delta, by: cmd.by}));
+    this.notify({by: 'you'});
   },
 };
 window.Commands = {};
-// sync layer (infra, one line): incoming bus commands merge into the replica.
-DS.bus.on('inc', m => Store.merge(m), 'store');
+// sync layer (infra): incoming bus commands merge — or queue while offline.
+DS.bus.on('inc', m => Store.online ? Store.merge(m) : Store.inbox.push(m), 'store');
 
 // global drivers: stable interval + mousemove call step-owned hooks
 setInterval(()=>{ if(DS.hooks.beat) DS.hooks.beat(); }, 2000);
@@ -414,6 +463,30 @@ DS.boardRemove = async (name) => {
 // read model: every board change re-renders this region from the collection.
 // (Subscribe happens next to the model in handler.js — one wiring, one place.)
 patch(`<div data-on:board-changed__window="R.boardRender()"></div>`);
+</script>
+<script type="text/plain" id="cqrs5-pub">
+// offline-first: same commit path — the Store queues when offline.
+// Presence/jobs never queue (live-only); commands do.
+DS.obInc = (d = 1) => {
+  Store.commit({ type: 'inc', delta: d, by: 'you' });
+};
+DS.goOffline = () => {
+  Store.online = false;
+  Store.notify({ by: 'you' });
+};
+DS.reconnect = () => {
+  Store.reconnect();
+};
+</script>
+<script type="text/plain" id="cqrs5-sub">
+// same read path, plus the event ledger. Queued/net state is read
+// straight from the Store — never broadcast, never stale.
+Store.subscribe((cmd) => {
+  const s = Store.get();
+  R.renderLog();
+  emit('render-offline', { count: s.count, by: cmd.by });
+});
+patch(`<div data-on:render-offline__window="$s9_o_count = evt.detail.count; $s9_o_by = evt.detail.by; $s9_o_queued = Store.outbox.length; $s9_net = Store.online ? 'online' : 'offline'"></div>`);
 </script>
 
 </body>
