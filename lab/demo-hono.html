@@ -28,13 +28,13 @@ main{max-width:1080px;margin:0 auto;padding:26px 28px}
     </div>
     <div class="card"><h3>Rendered demo</h3>
       <div class="demo" data-signals:hono_n="0">
-        <div data-init="@get('api/hono-stream')" data-indicator:fan_live></div>
+        <button id="streamOpener" style="display:none" data-on:click="@get('api/hono-stream')" data-indicator:fan_live></button>
         <p style="font-size:28px">shared: <strong id="hono_count">…</strong>
           <span class="dot" data-class:on="$fan_live" data-class:off="!$fan_live"></span></p>
         <p class="sig">signal mirror: <span data-text="$hono_n"></span></p>
         <button class="btn" data-on:click="@post('api/hono-inc')">Increment (server)</button>
         <div id="hono_status" style="margin-top:8px"></div>
-        <p class="sig">Stream opens on load. Edit the handler, Apply, click again — no reload. Open this page twice.</p>
+        <p class="sig">Stream opens after worker control is verified. Edit the handler, Apply, click again — no reload. Open this page twice.</p>
       </div>
     </div>
   </div>
@@ -87,19 +87,56 @@ document.getElementById('resetBtn').onclick = () => {
   sendRoute(DEFAULT_SRC);
 };
 
+async function ensureControl() {
+  // ready + a controller is NOT enough: it may be the wrong worker
+  // (MSW at / shadows us, or a stale bundle of this same scope).
+  // Poll briefly — activation + claim are async — then reload once.
+  const deadline = Date.now() + 3000;
+  for (;;) {
+    const ctl = navigator.serviceWorker.controller?.scriptURL || '';
+    if (ctl.includes('demo-worker.mjs')) return;
+    if (Date.now() > deadline) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!sessionStorage.getItem('hono-demo-reloaded')) {
+    sessionStorage.setItem('hono-demo-reloaded', '1');
+    location.reload();
+    await new Promise(() => {});
+  }
+  throw new Error('wrong controller: ' + (navigator.serviceWorker.controller?.scriptURL || '(none)'));
+}
+
+async function ensureStream(retries = 4) {
+  // Poll the EFFECT (snapshot text), not the cause: the click may land
+  // before Datastar initializes (no listener yet) or lose a race;
+  // same-action auto-cancel dedupes if a stream is already open.
+  for (let i = 0; i < retries; i++) {
+    const el = document.getElementById('fan_count');
+    if (el && el.textContent.trim() !== '…') return true;
+    document.getElementById('streamOpener')?.click();
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  const el = document.getElementById('fan_count');
+  return !!el && el.textContent.trim() !== '…';
+}
+
 try {
   const reg = await navigator.serviceWorker.register('./demo-worker.mjs', { scope: './', type: 'module' });
   await navigator.serviceWorker.ready;
-  if (!navigator.serviceWorker.controller) {
-    if (!sessionStorage.getItem('hono-demo-reloaded')) {
-      sessionStorage.setItem('hono-demo-reloaded', '1');
-      location.reload();
-      await new Promise(() => {});
-    }
-    throw new Error('uncontrolled after reload');
-  }
+  await ensureControl();
   pill.textContent = 'worker: ready (' + (reg.active?.state || '?') + ')';
   sendRoute(DEFAULT_SRC); // single source of truth: this page owns the default
+  // Open the stream deterministically: data-init fires exactly once and can
+  // lose the claim race (MAIN BUG this file fixed) — a programmatic click
+  // after verified control cannot. Poll the EFFECT (snapshot text), not the
+  // cause: same-action auto-cancel dedupes if a stream is already open.
+  if (!await ensureStream()) {
+    const main = document.getElementById('main');
+    const div = document.createElement('div');
+    div.className = 'banner off';
+    div.textContent = 'Live stream failed to open — increments will still work via POST responses, but other tabs will not update. Reload the tab.';
+    main.prepend(div);
+  }
 } catch (e) {
   pill.textContent = 'worker: FAILED — ' + (e.message || e);
 }

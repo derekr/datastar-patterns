@@ -18,3 +18,8 @@
   single source of truth, worker starts empty.
 - Proven live: edit +1→+5 applies without reload; syntax breaks go red
   while the old route keeps serving; `throw` surfaces visibly in-page.
+- Race found & fixed: Datastar defers its initial scan via `setTimeout`,
+  so `data-init`'s one-shot stream fetch can lose the worker-claim race and
+  404 with no retry. Streams now open from boot code *after* verified
+  control, polling the snapshot text (same-action auto-cancel dedupes).
+  Lesson: poll effects, never causes.
